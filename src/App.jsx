@@ -394,11 +394,6 @@ function App() {
     <div className="app-shell">
       <header className="header">
         <span className="logo">PharmaCalc</span>
-        <div className="header-right">
-          <button className="help-btn" type="button" title="Help" aria-label="Help">
-            ?
-          </button>
-        </div>
       </header>
       <nav className="tab-bar" aria-label="Main tools">
         {tabs.map((tab) => (
@@ -772,11 +767,8 @@ function RxValidity() {
           onChange={setSchedule}
           options={[
             ["6m", "Standard POM / Schedule 5 CD", "6 months"],
-            ["s2", "Schedule 2 CD", "28 days"],
-            ["s3", "Schedule 3 CD", "28 days"],
-            ["s4", "Schedule 4 CD", "28 days"]
+            ["28d", "Schedule 2 / 3 / 4 CD", "28 days"]
           ]}
-          normalize={(value) => (value === "6m" ? "6m" : "28d")}
         />
       </div>
       <DateField label="Dispensing date" value={dispDate} onChange={setDispDate} />
@@ -795,7 +787,7 @@ function RxValidity() {
           copyText={`Rx expires: ${fmtDate(result.expiry)} (${result.days < 0 ? `${Math.abs(result.days)} days overdue` : `${result.days} days remaining`})`}
         />
       ) : null}
-      <button className="clear-btn" type="button" onClick={() => { setRxDate(todayISO()); setDispDate(todayISO()); setSchedule("6m"); }}>
+      <button className="clear-btn" type="button" onClick={() => { setRxDate(todayISO()); setDispDate(todayISO()); setSchedule("6m"); }} >
         Clear
       </button>
     </>
@@ -828,7 +820,7 @@ function MixedFp10() {
   const [date, setDate] = useState(todayISO());
   const [items, setItems] = useState([
     { id: 1, schedule: "6m" },
-    { id: 2, schedule: "s2" }
+    { id: 2, schedule: "cd" }
   ]);
 
   const updateItem = (id, schedule) => setItems((current) => current.map((item) => (item.id === id ? { ...item, schedule } : item)));
@@ -839,7 +831,7 @@ function MixedFp10() {
       <span className="field-label list-label">Items on this prescription</span>
       <div className="rx-list">
         {items.map((item, index) => {
-          const expiry = item.schedule === "6m" ? addMonths(fromISO(date), 6) : addDays(fromISO(date), 28);
+          const expiry = item.schedule === "6m" ? addMonths(fromISO(date), 6) : addDays(fromISO(date), 28); // cd = 28 days
           const days = diffDays(expiry, new Date());
           const tone = days < 0 ? "error" : days <= 7 ? "warn" : "valid";
           const badge = days < 0 ? "Expired" : days <= 7 ? "Soon" : "Valid";
@@ -847,10 +839,8 @@ function MixedFp10() {
             <div className="rx-item" key={item.id}>
               <span className="rx-item-label">Item {index + 1}</span>
               <select value={item.schedule} onChange={(event) => updateItem(item.id, event.target.value)} aria-label={`Item ${index + 1} schedule`}>
-                <option value="6m">Standard POM / Sched. 5</option>
-                <option value="s2">Schedule 2 CD</option>
-                <option value="s3">Schedule 3 CD</option>
-                <option value="s4">Schedule 4 CD</option>
+                <option value="6m">Standard / Sched. 5 — 6 months</option>
+                <option value="cd">Schedule 2/3/4 CD — 28 days</option>
               </select>
               <span className="rx-item-expiry">{fmtShort(expiry)}</span>
               <Badge tone={tone}>{badge}</Badge>
@@ -875,7 +865,7 @@ function MixedFp10() {
         Each item has its own expiry. Schedule 2, 3 and 4 CD items expire after 28 days. Non-CD and Schedule 5 items
         expire after 6 months.
       </Notice>
-      <button className="clear-btn" type="button" onClick={() => setItems([{ id: 1, schedule: "6m" }, { id: 2, schedule: "s2" }])}>
+      <button className="clear-btn" type="button" onClick={() => setItems([{ id: 1, schedule: "6m" }, { id: 2, schedule: "cd" }])}>
         Clear all
       </button>
     </>
