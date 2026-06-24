@@ -730,12 +730,43 @@ function DurationTool() {
   );
 }
 
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
+const MINUTES = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, "0")); // 5-min steps
+
+// Custom 24h time control: two small selects with English digits, so it never
+// renders the device locale's AM/PM text (e.g. 上午/下午) like a native <input type=time>.
 function TimeField({ label, value, onChange }) {
+  const [h, m] = value ? value.split(":") : ["", ""];
+  const mSel = MINUTES.includes(m) ? m : "";
+  const setH = (hh) => onChange(hh === "" ? "" : `${hh}:${m || "00"}`);
+  const setM = (mm) => onChange(`${h || "00"}:${mm}`);
   return (
     <label className="field-group">
-      <span className="field-label">{label}</span>
-      <span className="input-wrap">
-        <input className="field-input plain-input" type="time" value={value} onChange={(event) => onChange(event.target.value)} />
+      {label ? <span className="field-label">{label}</span> : null}
+      <span className="time-selects">
+        <select
+          className="field-input plain-select time-sel"
+          value={h}
+          onChange={(event) => setH(event.target.value)}
+          aria-label={`${label} hour`}
+        >
+          <option value="">--</option>
+          {HOURS.map((hh) => (
+            <option key={hh} value={hh}>{hh}</option>
+          ))}
+        </select>
+        <span className="time-colon">:</span>
+        <select
+          className="field-input plain-select time-sel"
+          value={mSel}
+          onChange={(event) => setM(event.target.value)}
+          aria-label={`${label} minute`}
+        >
+          <option value="">--</option>
+          {MINUTES.map((mm) => (
+            <option key={mm} value={mm}>{mm}</option>
+          ))}
+        </select>
       </span>
     </label>
   );
@@ -1477,7 +1508,7 @@ function DoseTimingTool() {
 
   return (
     <>
-      <div className="field-row">
+      <div className="field-row keep-cols">
         <TimeField label="Wakes up" value={wake} onChange={setWake} />
         <TimeField label="Goes to bed" value={sleep} onChange={setSleep} />
       </div>
@@ -1489,11 +1520,11 @@ function DoseTimingTool() {
       {empty ? (
         <div className="field-group stacked">
           <span className="field-label">Meal times</span>
-          <div className="field-row">
+          <div className="field-row keep-cols meals-row">
             <TimeField label="Breakfast" value={breakfast} onChange={setBreakfast} />
             <TimeField label="Lunch" value={lunch} onChange={setLunch} />
+            <TimeField label="Dinner" value={dinner} onChange={setDinner} />
           </div>
-          <TimeField label="Dinner" value={dinner} onChange={setDinner} />
         </div>
       ) : null}
       {result ? (

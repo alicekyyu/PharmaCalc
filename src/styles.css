@@ -227,9 +227,13 @@ a:hover {
   gap: 12px;
 }
 
+.field-row.meals-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .field-group {
   display: block;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .field-group.stacked {
@@ -785,6 +789,18 @@ a:hover {
     gap: 0;
   }
 
+  /* Time-only rows stay multi-column on mobile so wake/bed + meals fit
+     without scrolling and the result sits higher up the page. */
+  .field-row.keep-cols {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .field-row.keep-cols.meals-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+  }
+
   .rx-item {
     grid-template-columns: 1fr auto;
   }
@@ -811,6 +827,13 @@ a:hover {
 
   .result-value {
     font-size: 22px;
+  }
+}
+
+@media (max-width: 360px) {
+  /* Three time pickers across is too tight here — drop meals to two columns. */
+  .field-row.keep-cols.meals-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -971,6 +994,26 @@ a:hover {
   color: var(--text-tertiary);
   font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
+}
+
+/* ── TIME PICKER (compact HH:MM, no native locale text) ─── */
+.time-selects {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.time-sel {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 22px 0 10px;
+  text-align: left;
+}
+
+.time-colon {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-weight: 700;
 }
 
 /* ── DOSE TIMING CHIPS ──────────────────────────────────── */
