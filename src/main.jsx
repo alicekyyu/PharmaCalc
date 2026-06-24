@@ -9,8 +9,12 @@ createRoot(document.getElementById("root")).render(
   </React.StrictMode>
 );
 
-if ("serviceWorker" in navigator && import.meta.env.PROD) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
+// Defensively unregister any previously-installed service worker. The old SW
+// cached index.html cache-first and broke every deploy with a blank screen; the
+// /sw.js shipped now self-destructs, but this also cleans up clients that reach
+// fresh JS by another route.
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.getRegistrations?.().then((regs) => {
+    regs.forEach((reg) => reg.unregister());
   });
 }

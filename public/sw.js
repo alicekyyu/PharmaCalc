@@ -1,30 +1,28 @@
-const CACHE_NAME = "pharmacalc-v1";
-const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest", "/pharmacalc-icon.svg"];
+// Self-destructing service worker.
+//
+// The previous version cached index.html with a cache-first strategy and a
+// fixed cache name, so it pinned a stale index.html that pointed at a deleted
+// JS bundle — every deploy showed returning visitors a blank screen. This
+// version exists only to undo that: it clears all caches, unregisters itself,
+// and reloads open pages onto fresh, network-served content. Browsers re-fetch
+// the SW script from the network on navigation, so already-affected devices
+// pick this up and self-heal.
 
-self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
+self.addEventListener("install", () => {
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
-    )
+    (async () => {
+      await self.clients.claim();
+      const keys = await caches.keys();
+      await Promise.all(keys.map((key) => caches.delete(key)));
+      await self.registration.unregister();
+      const clients = await self.clients.matchAll({ type: "window" });
+      clients.forEach((client) => client.navigate(client.url));
+    })()
   );
-  self.clients.claim();
 });
 
-self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") return;
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request).then((response) => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-        return response;
-      });
-    })
-  );
-});
+// No fetch handler: all requests go straight to the network.
