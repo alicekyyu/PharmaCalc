@@ -1,0 +1,16 @@
+# Netlify continuous deployment config.
+# With the repo connected to Netlify, every push runs this build automatically.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Single-page app fallback: serve index.html for any path so client routes
+# (and hard refreshes) don't 404. Harmless for the current single-view app.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

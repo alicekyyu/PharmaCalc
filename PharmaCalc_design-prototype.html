@@ -1,0 +1,2449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PharmaCalc — Design Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* ── DESIGN TOKENS ─────────────────────────────────── */
+  :root {
+    --bg-base:      #0E1117;
+    --bg-surface:   #161B25;
+    --bg-elevated:  #1E2535;
+    --border:       #2A3347;
+    --text-primary:   #E8EDF5;
+    --text-secondary: #8A97AE;
+    --text-tertiary:  #52617A;
+    --accent-cyan:    #00C2CC;
+    --status-valid:   #22C55E;
+    --status-warn:    #F59E0B;
+    --status-expired: #EF4444;
+    --status-info:    #6BA3F5;
+  }
+
+  /* ── RESET & BASE ──────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-size: 14px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  a { color: var(--text-tertiary); text-decoration: underline; text-underline-offset: 2px; }
+  a:hover { color: var(--text-secondary); }
+
+  /* ── HEADER ─────────────────────────────────────────── */
+  .header {
+    height: 44px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    position: sticky;
+    top: 0;
+    background: var(--bg-base);
+    z-index: 100;
+  }
+  .logo {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    letter-spacing: 0;
+  }
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .region-selector {
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .help-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: none;
+    color: var(--text-tertiary);
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: inherit;
+  }
+  .help-btn:hover { color: var(--text-secondary); border-color: var(--text-tertiary); }
+
+  /* ── MAIN TAB BAR ──────────────────────────────────── */
+  .tab-bar {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-base);
+    position: sticky;
+    top: 44px;
+    z-index: 99;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tab-bar::-webkit-scrollbar { display: none; }
+  .tab-btn {
+    flex: 1;
+    min-width: 80px;
+    height: 48px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: color 0.1s;
+    white-space: nowrap;
+    padding: 0 16px;
+  }
+  .tab-btn:hover { color: var(--text-primary); }
+  .tab-btn.active {
+    color: var(--text-primary);
+    border-bottom-color: var(--accent-cyan);
+  }
+
+  /* ── CONTENT AREA ──────────────────────────────────── */
+  .content {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 12px 16px 40px;
+  }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ── CARD ───────────────────────────────────────────── */
+  .card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  .card-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 10px;
+  }
+
+  /* ── SUB-TABS (PILLS) ──────────────────────────────── */
+  .sub-tabs {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .sub-tab-btn {
+    font-size: 12px;
+    font-weight: 500;
+    font-family: inherit;
+    padding: 4px 10px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.1s;
+  }
+  .sub-tab-btn:hover { color: var(--text-primary); border-color: var(--text-secondary); }
+  .sub-tab-btn.active {
+    background: var(--bg-elevated);
+    border-color: var(--accent-cyan);
+    color: var(--text-primary);
+  }
+  .sub-panel { display: none; }
+  .sub-panel.active { display: block; }
+
+  /* ── FORM ELEMENTS ─────────────────────────────────── */
+  .field-group { margin-bottom: 10px; }
+  /* Numeric inputs: trigger the on-screen number pad, drop the spinner arrows */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+  .field-row { display: flex; gap: 12px; }
+  .field-row .field-group { flex: 1; }
+  .field-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .unit-toggle { display: flex; gap: 4px; }
+  .unit-btn {
+    font-size: 11px;
+    font-family: inherit;
+    padding: 2px 8px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.1s;
+  }
+  .unit-btn.active {
+    border-color: var(--accent-cyan);
+    color: var(--text-primary);
+    background: var(--bg-elevated);
+  }
+  .input-wrap { position: relative; }
+  .field-input {
+    width: 100%;
+    height: 36px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-family: inherit;
+    padding: 0 12px;
+    outline: none;
+    transition: border-color 0.1s;
+  }
+  .field-input::placeholder { color: var(--text-tertiary); }
+  .field-input:focus { border-color: var(--accent-cyan); box-shadow: 0 0 0 2px rgba(0,194,204,0.12); }
+  .input-unit {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    color: var(--text-tertiary);
+    pointer-events: none;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .today-btn {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 10px;
+    font-family: inherit;
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    background: var(--bg-base);
+    color: var(--text-tertiary);
+    cursor: pointer;
+  }
+  .today-btn:hover { color: var(--text-secondary); border-color: var(--text-secondary); }
+
+  /* ── DATE PICKER (pop-out calendar) ─────────────────── */
+  input.dp { cursor: pointer; }
+  .dp-pop {
+    position: absolute;
+    z-index: 200;
+    width: 244px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+  }
+  .dp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .dp-title { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+  .dp-nav {
+    width: 24px; height: 24px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    font-size: 14px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .dp-nav:hover { color: var(--text-primary); border-color: var(--text-tertiary); }
+  .dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+  .dp-dow {
+    font-size: 9px; color: var(--text-tertiary); text-align: center;
+    text-transform: uppercase; font-family: 'JetBrains Mono', monospace; padding-bottom: 2px;
+  }
+  .dp-cell {
+    aspect-ratio: 1;
+    background: none; border: 1px solid transparent; border-radius: 4px;
+    color: var(--text-secondary); font-size: 12px; font-family: inherit; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; padding: 0;
+  }
+  .dp-cell:hover { background: var(--bg-surface); color: var(--text-primary); }
+  .dp-cell.empty { cursor: default; }
+  .dp-cell.today { border-color: var(--text-tertiary); border-style: dashed; }
+  .dp-cell.sel { background: var(--accent-cyan); color: var(--bg-base); font-weight: 600; }
+  .dp-foot { margin-top: 8px; text-align: right; }
+  .dp-foot button {
+    font-size: 11px; font-family: inherit; color: var(--accent-cyan);
+    background: none; border: 1px solid var(--border); border-radius: 4px;
+    padding: 3px 10px; cursor: pointer;
+  }
+  .dp-foot button:hover { border-color: var(--accent-cyan); }
+
+  /* ── TIME CHIPS (dose timing) ───────────────────────── */
+  .time-chip {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px; font-weight: 600;
+    padding: 6px 12px; border-radius: 4px;
+    background: rgba(0,194,204,0.12); border: 1px solid rgba(0,194,204,0.4);
+    color: var(--accent-cyan);
+  }
+
+  /* ── MED SYNC ROWS ──────────────────────────────────── */
+  .sync-item {
+    display: grid;
+    grid-template-columns: 1fr 64px 64px 22px;
+    gap: 6px; align-items: center;
+    margin-bottom: 6px;
+  }
+  .sync-item input {
+    height: 32px; background: var(--bg-elevated); border: 1px solid var(--border);
+    border-radius: 4px; color: var(--text-primary); font-size: 12px; font-family: inherit;
+    padding: 0 8px; outline: none; width: 100%;
+  }
+  .sync-item input:focus { border-color: var(--accent-cyan); }
+  .sync-head {
+    display: grid; grid-template-columns: 1fr 64px 64px 22px; gap: 6px;
+    font-size: 10px; color: var(--text-tertiary); text-transform: uppercase;
+    letter-spacing: 0.05em; margin-bottom: 4px;
+  }
+  .sync-plan-row {
+    display: flex; justify-content: space-between; gap: 8px;
+    padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 12px;
+  }
+  .sync-plan-row:last-child { border-bottom: none; }
+  .sync-plan-name { color: var(--text-primary); font-weight: 500; }
+  .sync-plan-action { color: var(--text-secondary); text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+
+  /* Schedule radio */
+  .schedule-options { display: flex; flex-direction: column; gap: 4px; }
+  .schedule-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: border-color 0.1s;
+  }
+  .schedule-option:hover { border-color: var(--text-tertiary); }
+  .schedule-option.selected { border-color: var(--accent-cyan); }
+  .schedule-option input[type="radio"] { accent-color: var(--accent-cyan); }
+  .schedule-label { font-size: 12px; color: var(--text-primary); flex: 1; }
+  .schedule-rule {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* ── RESULT BLOCK ──────────────────────────────────── */
+  .result-block {
+    background: var(--bg-base);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    margin-top: 12px;
+  }
+  .result-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 3px 8px;
+    border-radius: 3px;
+    border: 1px solid;
+  }
+  .badge-valid { color: var(--status-valid); border-color: var(--status-valid); background: rgba(34,197,94,0.1); }
+  .badge-warn  { color: var(--status-warn);  border-color: var(--status-warn);  background: rgba(245,158,11,0.1); }
+  .badge-error { color: var(--status-expired); border-color: var(--status-expired); background: rgba(239,68,68,0.1); }
+  .badge-info  { color: var(--status-info);  border-color: var(--status-info);  background: rgba(107,163,245,0.1); }
+
+  .copy-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text-tertiary);
+    font-size: 11px;
+    font-family: inherit;
+    padding: 3px 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.1s;
+  }
+  .copy-btn:hover { color: var(--text-secondary); border-color: var(--text-secondary); }
+  .copy-btn.copied { color: var(--status-valid); border-color: var(--status-valid); }
+
+  .result-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 4px;
+  }
+  .result-value {
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.1;
+    margin-bottom: 4px;
+  }
+  .result-sub {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+  }
+  .result-source {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    border-top: 1px solid var(--border);
+    padding-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+  .result-source a { font-size: 11px; color: var(--text-tertiary); }
+  .result-source a:hover { color: var(--text-secondary); }
+  .result-source-sep { color: var(--border); }
+
+  /* ── DISCLAIMER ─────────────────────────────────────── */
+  .disclaimer {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    padding: 10px 0 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    line-height: 1.5;
+  }
+  .disclaimer .icon { color: var(--status-info); flex-shrink: 0; }
+
+  /* ── NOTICE / WARNING BANNER ─────────────────────────── */
+  .notice-banner {
+    background: rgba(245,158,11,0.08);
+    border: 1px solid rgba(245,158,11,0.3);
+    border-radius: 4px;
+    padding: 10px 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 14px;
+    display: flex;
+    gap: 8px;
+  }
+  .notice-banner .icon { color: var(--status-warn); flex-shrink: 0; }
+  .notice-ban-err {
+    background: rgba(239,68,68,0.08);
+    border-color: rgba(239,68,68,0.3);
+  }
+  .notice-ban-err .icon { color: var(--status-expired); }
+  .notice-ban-info {
+    background: rgba(107,163,245,0.08);
+    border-color: rgba(107,163,245,0.3);
+  }
+  .notice-ban-info .icon { color: var(--status-info); }
+
+  /* ── CLEAR BUTTON ───────────────────────────────────── */
+  .clear-btn {
+    background: none;
+    border: none;
+    color: var(--text-tertiary);
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    padding: 8px 0 0;
+    display: block;
+  }
+  .clear-btn:hover { color: var(--text-secondary); }
+
+  /* ── SECTION DIVIDER ────────────────────────────────── */
+  .divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+  /* ── FERTILITY CALENDAR STRIP ───────────────────────── */
+  .calendar-strip {
+    display: flex;
+    gap: 3px;
+    margin: 12px 0;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .cal-day {
+    min-width: 32px;
+    height: 40px;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    gap: 2px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .cal-day .day-name { color: var(--text-tertiary); font-size: 9px; text-transform: uppercase; }
+  .cal-day .day-num { color: var(--text-secondary); font-weight: 500; }
+  .cal-day.fertile {
+    background: rgba(0,194,204,0.12);
+    border-color: rgba(0,194,204,0.4);
+  }
+  .cal-day.fertile .day-num { color: var(--accent-cyan); }
+  .cal-day.ovulation {
+    background: rgba(0,194,204,0.2);
+    border-color: var(--accent-cyan);
+    border-width: 2px;
+  }
+  .cal-day.ovulation .day-num { color: var(--accent-cyan); font-weight: 700; }
+  .cal-day.today { border-style: dashed; border-color: var(--text-tertiary); }
+
+  /* ── PROGRESS BAR ───────────────────────────────────── */
+  .progress-track {
+    height: 6px;
+    background: var(--bg-elevated);
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 8px 0 4px;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+  }
+  .progress-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--text-tertiary);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* ── QUICK ADD PILLS ────────────────────────────────── */
+  .quick-add {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .quick-pill {
+    font-size: 11px;
+    font-family: inherit;
+    padding: 5px 10px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.1s;
+  }
+  .quick-pill:hover { border-color: var(--accent-cyan); color: var(--text-primary); }
+
+  /* ── MIXED FP10 ITEMS ───────────────────────────────── */
+  .rx-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+  .rx-item-label { color: var(--text-secondary); width: 48px; flex-shrink: 0; }
+  .rx-item select {
+    flex: 1;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text-primary);
+    font-size: 12px;
+    font-family: inherit;
+    padding: 4px 8px;
+    outline: none;
+  }
+  .rx-item select:focus { border-color: var(--accent-cyan); }
+  .rx-item-expiry { font-size: 12px; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; min-width: 96px; }
+  .rx-item-remove {
+    background: none;
+    border: none;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 2px;
+  }
+  .rx-item-remove:hover { color: var(--status-expired); }
+  .add-item-btn {
+    font-size: 12px;
+    font-family: inherit;
+    color: var(--accent-cyan);
+    background: none;
+    border: 1px dashed var(--border);
+    border-radius: 4px;
+    width: 100%;
+    padding: 7px;
+    cursor: pointer;
+    margin-top: 4px;
+    transition: border-color 0.1s;
+  }
+  .add-item-btn:hover { border-color: var(--accent-cyan); background: rgba(0,194,204,0.05); }
+
+  /* ── CKD STAGING CHIP ───────────────────────────────── */
+  .ckd-chip {
+    display: inline-flex;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-family: 'JetBrains Mono', monospace;
+    margin-left: 8px;
+  }
+
+  /* ── CHECKBOX LIST ──────────────────────────────────── */
+  .check-list { display: flex; flex-direction: column; gap: 6px; }
+  .check-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-secondary);
+    transition: all 0.1s;
+  }
+  .check-item:hover { border-color: var(--text-tertiary); color: var(--text-primary); }
+  .check-item.checked { border-color: var(--status-valid); color: var(--text-primary); }
+  .check-item input[type="checkbox"] { accent-color: var(--status-valid); width: 15px; height: 15px; flex-shrink: 0; }
+
+  /* ── RESPONSIVE ─────────────────────────────────────── */
+  @media (max-width: 640px) {
+    .content { padding: 16px 16px 64px; }
+    .result-value { font-size: 24px; }
+    .field-row { flex-direction: column; gap: 0; }
+    .header { padding: 0 16px; }
+  }
+  @media (max-width: 380px) {
+    .tab-btn { min-width: 64px; font-size: 12px; padding: 0 10px; }
+  }
+
+  /* ── DESIGN SYSTEM PAGE ─────────────────────────────── */
+  .ds-section { margin-bottom: 32px; }
+  .ds-label {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .swatch-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+  .swatch {
+    width: 60px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .swatch-color { width: 44px; height: 44px; border-radius: 4px; border: 1px solid var(--border); }
+  .swatch-name { font-size: 9px; color: var(--text-tertiary); text-align: center; line-height: 1.3; font-family: 'JetBrains Mono', monospace; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <span class="logo">PharmaCalc</span>
+  <div class="header-right">
+    <button class="help-btn" title="Help">?</button>
+  </div>
+</header>
+
+<!-- MAIN TAB BAR -->
+<nav class="tab-bar" id="mainTabs">
+  <button class="tab-btn active" onclick="switchTab(0)">BMI</button>
+  <button class="tab-btn" onclick="switchTab(1)">Dates</button>
+  <button class="tab-btn" onclick="switchTab(2)">Fertility</button>
+  <button class="tab-btn" onclick="switchTab(3)">Clinical</button>
+  <button class="tab-btn" onclick="switchTab(4)">Patient</button>
+  <button class="tab-btn" onclick="switchTab(5)">Dosing</button>
+</nav>
+
+<!-- CONTENT -->
+<main class="content">
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- TAB 1: BMI -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div class="tab-panel active" id="tab0">
+    <div class="card">
+      <div class="card-title">BMI Calculator</div>
+
+      <div class="field-group">
+        <div class="field-label">
+          Height
+          <div class="unit-toggle">
+            <button class="unit-btn" onclick="toggleUnit(this,'h')">cm</button>
+            <button class="unit-btn active" onclick="toggleUnit(this,'h')">ft / in</button>
+          </div>
+        </div>
+        <div class="input-wrap" id="heightCm" style="display:none;">
+          <input class="field-input" id="bmiH" type="number" placeholder="175" oninput="calcBMI()">
+          <span class="input-unit">cm</span>
+        </div>
+        <div class="field-row" id="heightFtIn" style="margin-top:6px;">
+          <div class="input-wrap" style="flex:1">
+            <input class="field-input" id="bmiHft" type="number" placeholder="5" oninput="calcBMI()">
+            <span class="input-unit">ft</span>
+          </div>
+          <div class="input-wrap" style="flex:1">
+            <input class="field-input" id="bmiHin" type="number" placeholder="9" oninput="calcBMI()">
+            <span class="input-unit">in</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <div class="field-label">
+          Weight
+          <div class="unit-toggle">
+            <button class="unit-btn active" onclick="toggleUnit(this,'w')">kg</button>
+            <button class="unit-btn" onclick="toggleUnit(this,'w')">st / lb</button>
+          </div>
+        </div>
+        <div class="input-wrap" id="weightKg">
+          <input class="field-input" id="bmiW" type="number" placeholder="70" oninput="calcBMI()">
+          <span class="input-unit">kg</span>
+        </div>
+        <div class="field-row" id="weightStLb" style="display:none; margin-top:6px;">
+          <div class="input-wrap" style="flex:1">
+            <input class="field-input" id="bmiWst" type="number" placeholder="11" oninput="calcBMI()">
+            <span class="input-unit">st</span>
+          </div>
+          <div class="input-wrap" style="flex:1">
+            <input class="field-input" id="bmiWlb" type="number" placeholder="0" oninput="calcBMI()">
+            <span class="input-unit">lb</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ethnic threshold toggle -->
+      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:12px;color:var(--text-secondary);padding:10px 12px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:4px;margin-bottom:14px;">
+        <input type="checkbox" id="ethnicToggle" onchange="calcBMI()" style="accent-color:var(--accent-cyan);margin-top:2px;flex-shrink:0;">
+        <span>Use ethnic minority thresholds (NICE NG246) — South Asian · Chinese · Black African/Caribbean · Middle Eastern<br>
+        <span style="color:var(--text-tertiary)">Overweight ≥ 23 · Obese ≥ 27.5</span></span>
+      </label>
+
+      <!-- Result -->
+      <div class="result-block" id="bmiResult" style="display:none;">
+        <div class="result-header">
+          <span class="status-badge" id="bmiBadge"></span>
+          <button class="copy-btn" onclick="copyResult('bmiCopyVal')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            Copy
+          </button>
+        </div>
+        <div class="result-label">BMI</div>
+        <div class="result-value" id="bmiVal"></div>
+        <div class="result-sub" id="bmiCat"></div>
+        <span id="bmiCopyVal" style="display:none"></span>
+        <div class="result-source">
+          <a href="https://www.nice.org.uk/guidance/ng246/chapter/Identifying-and-assessing-overweight-obesity-and-central-adiposity" target="_blank" rel="noopener">↗ NICE NG246</a>
+          <span class="result-source-sep">·</span>
+          <a href="https://www.nhs.uk/common-health-questions/lifestyle/what-is-the-body-mass-index-bmi/" target="_blank" rel="noopener">↗ NHS BMI</a>
+        </div>
+      </div>
+
+      <div class="notice-ban-info notice-banner" style="margin-top:14px;">
+        <span class="icon">ℹ</span>
+        <span>BMI is not suitable for: pregnant women · high muscle mass (e.g. athletes) · under 18s (use centile chart)</span>
+      </div>
+
+      <button class="clear-btn" onclick="clearTab('tab0')">Clear</button>
+    </div>
+
+    <div class="disclaimer">
+      <span class="icon">ℹ</span>
+      <span>Decision-support tool only. Verify with BNF / NICE. Not a substitute for professional judgement.
+        <a href="https://www.nice.org.uk/guidance/ng246" target="_blank" rel="noopener">↗ NICE NG246</a></span>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- TAB 2: DATES -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab1">
+    <div class="card">
+      <div class="sub-tabs">
+        <button class="sub-tab-btn active" onclick="switchSub('dates',0,this)">Rx Validity</button>
+        <button class="sub-tab-btn" onclick="switchSub('dates',1,this)">Mixed FP10</button>
+        <button class="sub-tab-btn" onclick="switchSub('dates',2,this)">Emergency Supply</button>
+        <button class="sub-tab-btn" onclick="switchSub('dates',3,this)">Age</button>
+        <button class="sub-tab-btn" onclick="switchSub('dates',4,this)">Duration</button>
+      </div>
+
+      <!-- 2A: Rx Validity -->
+      <div class="sub-panel active" id="dates0">
+        <div class="field-group">
+          <div class="field-label">Appropriate date (date on prescription)</div>
+          <div class="input-wrap">
+            <input class="field-input dp" id="rxDate" readonly placeholder="DD/MM/YYYY" onclick="DP.open(this,calcRx)" style="padding-right:68px;">
+            <button class="today-btn" onclick="DP.set($('rxDate'),new Date());calcRx()">Today</button>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <div class="field-label">Drug schedule</div>
+          <div class="schedule-options" id="scheduleOpts">
+            <label class="schedule-option selected" onclick="selectSchedule(this,'6m')">
+              <input type="radio" name="sched" checked>
+              <span class="schedule-label">Standard POM / Schedule 5 CD</span>
+              <span class="schedule-rule">6 months</span>
+            </label>
+            <label class="schedule-option" onclick="selectSchedule(this,'28d')">
+              <input type="radio" name="sched">
+              <span class="schedule-label">Schedule 2 CD</span>
+              <span class="schedule-rule">28 days</span>
+            </label>
+            <label class="schedule-option" onclick="selectSchedule(this,'28d')">
+              <input type="radio" name="sched">
+              <span class="schedule-label">Schedule 3 CD</span>
+              <span class="schedule-rule">28 days</span>
+            </label>
+            <label class="schedule-option" onclick="selectSchedule(this,'28d')">
+              <input type="radio" name="sched">
+              <span class="schedule-label">Schedule 4 CD</span>
+              <span class="schedule-rule">28 days</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="field-group" style="margin-top:14px;">
+          <div class="field-label">Dispensing date</div>
+          <div class="input-wrap">
+            <input class="field-input dp" id="dispDate" readonly placeholder="DD/MM/YYYY" onclick="DP.open(this,calcRx)" style="padding-right:68px;">
+            <button class="today-btn" onclick="DP.set($('dispDate'),new Date());calcRx()">Today</button>
+          </div>
+        </div>
+
+        <div class="result-block" id="rxResult" style="display:none;">
+          <div class="result-header">
+            <span class="status-badge" id="rxBadge"></span>
+            <button class="copy-btn" onclick="copyResult('rxCopyVal')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              Copy
+            </button>
+          </div>
+          <div class="result-label">Expires</div>
+          <div class="result-value" id="rxExpiry"></div>
+          <div class="result-sub" id="rxDays"></div>
+          <span id="rxCopyVal" style="display:none"></span>
+          <div class="result-source">
+            <a href="https://faq.nhsbsa.nhs.uk/knowledgebase/article/KA-01561/en-us" target="_blank" rel="noopener">↗ NHSBSA FAQ</a>
+            <span class="result-source-sep">·</span>
+            <a href="https://www.nhs.uk/common-health-questions/medicines/how-long-is-a-prescription-valid-for/" target="_blank" rel="noopener">↗ NHS.uk</a>
+            <span class="result-source-sep">·</span>
+            <a href="https://cpe.org.uk/wp-content/uploads/2025/10/Dispensing-CDs-factsheet-April-26.pdf" target="_blank" rel="noopener">↗ CPE Apr 2026</a>
+          </div>
+        </div>
+        <button class="clear-btn" onclick="clearSub('dates0')">Clear</button>
+      </div>
+
+      <!-- 2B: Mixed FP10 -->
+      <div class="sub-panel" id="dates1">
+        <div class="field-group">
+          <div class="field-label">Appropriate date</div>
+          <div class="input-wrap">
+            <input class="field-input dp" id="mixDate" readonly placeholder="DD/MM/YYYY" onclick="DP.open(this,updateMixedItems)" style="padding-right:68px;">
+            <button class="today-btn" onclick="DP.set($('mixDate'),new Date());updateMixedItems()">Today</button>
+          </div>
+        </div>
+        <div class="field-label" style="margin-bottom:8px;margin-top:14px;">Items on this prescription</div>
+        <div id="mixedItems">
+          <div class="rx-item">
+            <span class="rx-item-label">Item 1</span>
+            <select onchange="updateMixedItems()">
+              <option value="6m">Standard POM / Sched. 5</option>
+              <option value="28d">Schedule 2 CD</option>
+              <option value="28d">Schedule 3 CD</option>
+              <option value="28d">Schedule 4 CD</option>
+            </select>
+            <span class="rx-item-expiry" id="mixItem0">—</span>
+            <span class="status-badge" id="mixBadge0" style="font-size:10px;padding:2px 6px;"></span>
+          </div>
+          <div class="rx-item">
+            <span class="rx-item-label">Item 2</span>
+            <select onchange="updateMixedItems()">
+              <option value="6m">Standard POM / Sched. 5</option>
+              <option value="28d" selected>Schedule 2 CD</option>
+              <option value="28d">Schedule 3 CD</option>
+              <option value="28d">Schedule 4 CD</option>
+            </select>
+            <span class="rx-item-expiry" id="mixItem1">—</span>
+            <span class="status-badge" id="mixBadge1" style="font-size:10px;padding:2px 6px;"></span>
+          </div>
+        </div>
+        <button class="add-item-btn" onclick="addMixItem()">+ Add item</button>
+        <div class="notice-ban-info notice-banner" style="margin-top:14px;">
+          <span class="icon">ℹ</span>
+          <span>Each item has its own expiry. CD items (Sched. 2/3/4) expire after 28 days; non-CD items after 6 months.
+            <a href="https://faq.nhsbsa.nhs.uk/knowledgebase/article/KA-01561/en-us" target="_blank" rel="noopener">↗ NHSBSA FAQ</a></span>
+        </div>
+        <button class="clear-btn" onclick="clearSub('dates1')">Clear all</button>
+      </div>
+
+      <!-- 2C: Emergency Supply -->
+      <div class="sub-panel" id="dates2">
+        <div class="field-label" style="margin-bottom:8px;">Legal criteria — all must be met</div>
+        <div class="check-list" id="emCriteria">
+          <label class="check-item" onclick="updateEmergency()">
+            <input type="checkbox" id="em1" onchange="updateEmergency()">
+            Previously prescribed this medicine
+          </label>
+          <label class="check-item" onclick="updateEmergency()">
+            <input type="checkbox" id="em2" onchange="updateEmergency()">
+            Immediate need — health at risk without it
+          </label>
+          <label class="check-item" onclick="updateEmergency()">
+            <input type="checkbox" id="em3" onchange="updateEmergency()">
+            Unable to obtain a prescription without undue delay
+          </label>
+        </div>
+
+        <div class="field-group" style="margin-top:14px;">
+          <div class="field-label">Medicine type</div>
+          <div class="schedule-options" id="emType">
+            <label class="schedule-option selected" onclick="selectEmType(this,'pom')">
+              <input type="radio" name="emSch" checked>
+              <span class="schedule-label">Standard POM (incl. Schedule 5 CD)</span>
+              <span class="schedule-rule">max 30 days</span>
+            </label>
+            <label class="schedule-option" onclick="selectEmType(this,'cd45')">
+              <input type="radio" name="emSch">
+              <span class="schedule-label">Schedule 4 CD</span>
+              <span class="schedule-rule">max 5 days</span>
+            </label>
+            <label class="schedule-option" onclick="selectEmType(this,'cd123')">
+              <input type="radio" name="emSch">
+              <span class="schedule-label">Schedule 1 / 2 / 3 CD</span>
+              <span class="schedule-rule">cannot supply</span>
+            </label>
+            <label class="schedule-option" onclick="selectEmType(this,'inhaler')">
+              <input type="radio" name="emSch">
+              <span class="schedule-label">Inhaler / cream / ointment</span>
+              <span class="schedule-rule">smallest pack</span>
+            </label>
+          </div>
+        </div>
+
+        <div id="emResult" style="display:none;margin-top:16px;"></div>
+
+        <div class="disclaimer" style="margin-top:12px;">
+          <span class="icon">⚠</span>
+          <span>Final decision rests with the pharmacist.
+            <a href="https://www.pharmacyregulation.org/standards/standards-for-pharmacy-professionals" target="_blank" rel="noopener">↗ GPhC Standards</a> ·
+            <a href="https://www.rpharms.com/resources/pharmacy-guides/medicines-ethics-and-practice" target="_blank" rel="noopener">↗ RPS MEP</a></span>
+        </div>
+        <button class="clear-btn" onclick="clearEmergency()">Clear</button>
+      </div>
+
+      <!-- 2D: Age -->
+      <div class="sub-panel" id="dates3">
+        <div class="field-group">
+          <div class="field-label">Date of birth</div>
+          <div class="input-wrap">
+            <input class="field-input dp" id="ageDOB" readonly placeholder="DD/MM/YYYY" onclick="DP.open(this,calcAge)">
+          </div>
+        </div>
+        <div class="result-block" id="ageResult" style="display:none;">
+          <div class="result-header">
+            <span class="status-badge badge-info">● AGE</span>
+            <button class="copy-btn" onclick="copyResult('ageCopyVal')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              Copy
+            </button>
+          </div>
+          <div class="result-label">Age</div>
+          <div class="result-value" id="ageVal" style="color:var(--accent-cyan)"></div>
+          <div class="result-sub" id="ageSub"></div>
+          <span id="ageCopyVal" style="display:none"></span>
+        </div>
+        <button class="clear-btn" onclick="clearSub('dates3')">Clear</button>
+      </div>
+
+      <!-- 2E: Duration / length -->
+      <div class="sub-panel" id="dates4">
+        <div class="unit-toggle" style="margin-bottom:12px;">
+          <button class="unit-btn active" id="durMb" onclick="setDurMode('between')">Between two dates</button>
+          <button class="unit-btn" id="durMa" onclick="setDurMode('addsub')">Add / subtract</button>
+        </div>
+
+        <!-- Between two dates/times -->
+        <div id="durBetween">
+          <div class="field-row">
+            <div class="field-group">
+              <div class="field-label">Start date</div>
+              <div class="input-wrap">
+                <input class="field-input dp" id="durStart" readonly placeholder="DD/MM/YYYY" onclick="DP.open(this,calcDuration)">
+              </div>
+            </div>
+            <div class="field-group">
+              <div class="field-label">Start time (optional)</div>
+              <div class="input-wrap">
+                <input class="field-input" id="durStartT" type="time" oninput="calcDuration()">
+              </div>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group">
+              <div class="field-label">End date</div>
+              <div class="input-wrap">
+                <input class="field-input dp" id="durEnd" readonly placeholder="DD/MM/YYYY" onclick="DP.open(this,calcDuration)">
+              </div>
+            </div>
+            <div class="field-group">
+              <div class="field-label">End time (optional)</div>
+              <div class="input-wrap">
+                <input class="field-input" id="durEndT" type="time" oninput="calcDuration()">
+              </div>
+            </div>
+          </div>
+          <div class="result-block" id="durResult" style="display:none;">
+            <div class="result-header">
+              <span class="status-badge badge-info" id="durBadge">● DURATION</span>
+              <button class="copy-btn" onclick="copyResult('durCopyVal')">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                Copy
+              </button>
+            </div>
+            <div class="result-label">Length of period</div>
+            <div class="result-value" id="durVal" style="color:var(--accent-cyan);font-size:20px;"></div>
+            <div class="result-sub" id="durSub"></div>
+            <span id="durCopyVal" style="display:none"></span>
+          </div>
+        </div>
+
+        <!-- Add / subtract a duration -->
+        <div id="durAddSub" style="display:none;">
+          <div class="field-group">
+            <div class="field-label">Base date</div>
+            <div class="input-wrap">
+              <input class="field-input dp" id="durBase" readonly placeholder="DD/MM/YYYY" onclick="DP.open(this,calcDuration)">
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group">
+              <div class="field-label">Amount</div>
+              <div class="input-wrap">
+                <input class="field-input" id="durAmt" type="number" oninput="calcDuration()">
+              </div>
+            </div>
+            <div class="field-group">
+              <div class="field-label">Unit</div>
+              <select class="field-input" id="durUnit" onchange="calcDuration()" style="cursor:pointer;">
+                <option value="days">days</option>
+                <option value="weeks" selected>weeks</option>
+                <option value="months">months</option>
+                <option value="years">years</option>
+              </select>
+            </div>
+          </div>
+          <div class="unit-toggle" style="margin-bottom:6px;">
+            <button class="unit-btn active" id="durDirAfter" onclick="setDurDir('after')">After</button>
+            <button class="unit-btn" id="durDirBefore" onclick="setDurDir('before')">Before</button>
+          </div>
+          <div class="result-block" id="durResult2" style="display:none;">
+            <div class="result-header">
+              <span class="status-badge badge-info">● DATE</span>
+              <button class="copy-btn" onclick="copyResult('durCopyVal2')">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                Copy
+              </button>
+            </div>
+            <div class="result-label">Resulting date</div>
+            <div class="result-value" id="durVal2" style="color:var(--accent-cyan);font-size:20px;"></div>
+            <span id="durCopyVal2" style="display:none"></span>
+          </div>
+        </div>
+        <button class="clear-btn" onclick="clearSub('dates4')">Clear</button>
+      </div>
+    </div>
+
+    <div class="disclaimer">
+      <span class="icon">ℹ</span>
+      <span>Decision-support tool only. Not a substitute for professional judgement.
+        <a href="https://cpe.org.uk/wp-content/uploads/2025/10/Dispensing-CDs-factsheet-April-26.pdf" target="_blank" rel="noopener">↗ CPE Apr 2026</a></span>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- TAB 3: FERTILITY -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab2">
+    <div class="card">
+      <div class="sub-tabs">
+        <button class="sub-tab-btn active" onclick="switchSub('fert',0,this)">Trying to Conceive</button>
+        <button class="sub-tab-btn" onclick="switchSub('fert',1,this)">Cycle Tracker</button>
+      </div>
+
+      <div class="sub-panel active" id="fert0">
+        <div class="field-group">
+          <div class="field-label">First day of last period (LMP)</div>
+          <div class="input-wrap">
+            <input class="field-input dp" id="fertLMP" readonly placeholder="DD/MM/YYYY" onclick="DP.open(this,calcFertility)">
+          </div>
+        </div>
+        <div class="field-group">
+          <div class="field-label">Average cycle length (default 28)</div>
+          <div class="input-wrap">
+            <input class="field-input" id="fertCycle" type="number" min="21" max="35" oninput="calcFertility()">
+            <span class="input-unit">days</span>
+          </div>
+        </div>
+
+        <div id="fertResult" style="display:none;">
+          <div class="result-block">
+            <div class="result-header">
+              <span class="status-badge badge-info">● FERTILE WINDOW</span>
+              <button class="copy-btn" onclick="copyResult('fertCopyVal')">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                Copy
+              </button>
+            </div>
+            <div class="result-label">Fertile window</div>
+            <div class="result-value" style="color:var(--accent-cyan);font-size:20px;" id="fertWindow"></div>
+            <div class="result-sub" id="fertOvulation"></div>
+            <div class="result-sub" id="fertNextPeriod"></div>
+            <span id="fertCopyVal" style="display:none"></span>
+          </div>
+
+          <div id="calendarStrip" class="calendar-strip" style="margin-top:12px;"></div>
+
+          <div class="result-source" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
+            <a href="https://www.fsrh.org/standards-and-guidance/documents/ceuguidancefertilityawarenessmethods/" target="_blank" rel="noopener">↗ FSRH Fertility Awareness</a>
+            <span class="result-source-sep">·</span>
+            <a href="https://www.nhs.uk/pregnancy/trying-for-a-baby/planning-your-pregnancy/" target="_blank" rel="noopener">↗ NHS</a>
+          </div>
+        </div>
+
+        <div class="notice-ban-info notice-banner" style="margin-top:14px;">
+          <span class="icon">ℹ</span>
+          <span>Estimates only — individual cycles vary. Consider ovulation strips or basal body temperature tracking.
+            <br>Folic acid: 400 µg/day from before conception until 12 weeks.
+            <a href="https://www.nhs.uk/pregnancy/keeping-well/vitamins-supplements-and-nutrition/" target="_blank" rel="noopener">↗ NHS Vitamins in pregnancy</a></span>
+        </div>
+        <button class="clear-btn" onclick="clearSub('fert0')">Clear</button>
+      </div>
+
+      <div class="sub-panel" id="fert1">
+        <div class="notice-banner">
+          <span class="icon">⚠</span>
+          <span>Fertility awareness alone is <strong>not a reliable contraceptive method</strong>. Typical-use failure rate is significantly higher than other methods. For contraception advice, consult a pharmacist or clinician.
+            <a href="https://www.fsrh.org/FRSH_CC/Contraception-Methods/Fertility-Awareness.aspx" target="_blank" rel="noopener">↗ FSRH Guidance</a></span>
+        </div>
+        <div class="field-group">
+          <div class="field-label">First day of last period (LMP)</div>
+          <div class="input-wrap">
+            <input class="field-input dp" id="fertLMP2" readonly placeholder="DD/MM/YYYY" onclick="DP.open(this,calcFertility2)">
+          </div>
+        </div>
+        <div class="field-group">
+          <div class="field-label">Average cycle length (default 28)</div>
+          <div class="input-wrap">
+            <input class="field-input" id="fertCycle2" type="number" min="21" max="35" oninput="calcFertility2()">
+            <span class="input-unit">days</span>
+          </div>
+        </div>
+        <div id="fertResult2" style="display:none;">
+          <div class="result-block">
+            <div class="result-label">Fertile window (estimated)</div>
+            <div class="result-value" style="color:var(--accent-cyan);font-size:20px;" id="fertWindow2"></div>
+            <div class="result-sub" id="fertOvulation2"></div>
+          </div>
+          <div id="calendarStrip2" class="calendar-strip" style="margin-top:12px;"></div>
+        </div>
+        <button class="clear-btn" onclick="clearSub('fert1')">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- TAB 4: CLINICAL -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab3">
+    <div class="notice-banner">
+      <span class="icon">⚠</span>
+      <span>Clinical tab. All results must be verified against BNF / BNFc / SPS before clinical use. This tool does not give drug doses.</span>
+    </div>
+    <div class="card">
+      <div class="sub-tabs">
+        <button class="sub-tab-btn active" onclick="switchSub('clin',0,this)">CrCl</button>
+        <button class="sub-tab-btn" onclick="switchSub('clin',1,this)">BSA</button>
+        <button class="sub-tab-btn" onclick="switchSub('clin',2,this)">Paediatric</button>
+        <button class="sub-tab-btn" onclick="switchSub('clin',3,this)">Converter</button>
+      </div>
+
+      <!-- CrCl -->
+      <div class="sub-panel active" id="clin0">
+        <div class="notice-ban-info notice-banner">
+          <span class="icon">ℹ</span>
+          <span>Use CrCl (Cockcroft-Gault) — not eGFR — for DOAC, gentamicin, vancomycin dosing. eGFR overestimates renal function.
+            <a href="https://www.sps.nhs.uk/monitorings/doacs-direct-oral-anticoagulants-monitoring/" target="_blank" rel="noopener">↗ NHS SPS</a></span>
+        </div>
+        <div class="field-row">
+          <div class="field-group">
+            <div class="field-label">Age</div>
+            <div class="input-wrap">
+              <input class="field-input" id="crAge" type="number" placeholder="65" oninput="calcCrCl()">
+              <span class="input-unit">yrs</span>
+            </div>
+          </div>
+          <div class="field-group">
+            <div class="field-label">Sex</div>
+            <div style="display:flex;gap:6px;margin-top:0;">
+              <button class="unit-btn active" id="sexM" onclick="setSex('M')">Male</button>
+              <button class="unit-btn" id="sexF" onclick="setSex('F')">Female</button>
+            </div>
+          </div>
+        </div>
+        <div class="field-group">
+          <div class="field-label">
+            Weight
+            <div class="unit-toggle">
+              <button class="unit-btn active" id="wtActual" onclick="setWeight('actual')">Actual</button>
+              <button class="unit-btn" id="wtIdeal" onclick="setWeight('ideal')">Ideal</button>
+              <button class="unit-btn" id="wtAdj" onclick="setWeight('adj')">Adjusted</button>
+            </div>
+          </div>
+          <div class="input-wrap">
+            <input class="field-input" id="crWt" type="number" placeholder="70" oninput="calcCrCl()">
+            <span class="input-unit">kg</span>
+          </div>
+        </div>
+        <div class="field-group">
+          <div class="field-label">Serum creatinine</div>
+          <div class="input-wrap">
+            <input class="field-input" id="crScr" type="number" placeholder="90" oninput="calcCrCl()">
+            <span class="input-unit">µmol/L</span>
+          </div>
+        </div>
+        <div class="result-block" id="crResult" style="display:none;">
+          <div class="result-header">
+            <span class="status-badge" id="crBadge"></span>
+            <button class="copy-btn" onclick="copyResult('crCopyVal')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              Copy
+            </button>
+          </div>
+          <div class="result-label">CrCl (Cockcroft-Gault)</div>
+          <div class="result-value" id="crVal"></div>
+          <div class="result-sub" id="crCKD"></div>
+          <span id="crCopyVal" style="display:none"></span>
+          <div class="result-source">
+            <a href="https://www.sps.nhs.uk/articles/calculating-kidney-function/" target="_blank" rel="noopener">↗ NHS SPS — Kidney function</a>
+            <span class="result-source-sep">·</span>
+            <a href="https://www.sps.nhs.uk/monitorings/doacs-direct-oral-anticoagulants-monitoring/" target="_blank" rel="noopener">↗ NHS SPS — DOAC monitoring</a>
+          </div>
+        </div>
+        <div class="disclaimer" style="margin-top:12px;">
+          <span class="icon">ℹ</span>
+          <span>CrCl is an estimate. Check BNF for drug-specific dose adjustments. This tool does not give doses.
+            <a href="https://bnf.nice.org.uk/" target="_blank" rel="noopener">↗ BNF online</a></span>
+        </div>
+        <button class="clear-btn" onclick="clearSub('clin0')">Clear</button>
+      </div>
+
+      <!-- BSA -->
+      <div class="sub-panel" id="clin1">
+        <div class="field-row">
+          <div class="field-group">
+            <div class="field-label">Height</div>
+            <div class="input-wrap">
+              <input class="field-input" id="bsaH" type="number" placeholder="170" oninput="calcBSA()">
+              <span class="input-unit">cm</span>
+            </div>
+          </div>
+          <div class="field-group">
+            <div class="field-label">Weight</div>
+            <div class="input-wrap">
+              <input class="field-input" id="bsaW" type="number" placeholder="70" oninput="calcBSA()">
+              <span class="input-unit">kg</span>
+            </div>
+          </div>
+        </div>
+        <div class="result-block" id="bsaResult" style="display:none;">
+          <div class="result-header">
+            <span class="status-badge badge-info">BSA</span>
+            <button class="copy-btn" onclick="copyResult('bsaCopyVal')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              Copy
+            </button>
+          </div>
+          <div class="result-label">BSA (Mosteller)</div>
+          <div class="result-value" id="bsaVal" style="color:var(--accent-cyan)"></div>
+          <div class="result-sub" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--text-tertiary);">Formula: √(H × W / 3,600)</div>
+          <span id="bsaCopyVal" style="display:none"></span>
+        </div>
+        <button class="clear-btn" onclick="clearSub('clin1')">Clear</button>
+      </div>
+
+      <!-- Paediatric -->
+      <div class="sub-panel" id="clin2">
+        <div class="field-row">
+          <div class="field-group">
+            <div class="field-label">Weight</div>
+            <div class="input-wrap">
+              <input class="field-input" id="pedWt" type="number" placeholder="20" oninput="calcPaed()">
+              <span class="input-unit">kg</span>
+            </div>
+          </div>
+          <div class="field-group">
+            <div class="field-label">Dose per kg</div>
+            <div class="input-wrap">
+              <input class="field-input" id="pedDose" type="number" placeholder="10" oninput="calcPaed()">
+              <span class="input-unit">mg/kg</span>
+            </div>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field-group">
+            <div class="field-label">Doses per day</div>
+            <div class="input-wrap">
+              <input class="field-input" id="pedFreq" type="number" placeholder="3" oninput="calcPaed()">
+              <span class="input-unit">× /day</span>
+            </div>
+          </div>
+          <div class="field-group">
+            <div class="field-label">Max single dose (optional)</div>
+            <div class="input-wrap">
+              <input class="field-input" id="pedMax" type="number" placeholder="500" oninput="calcPaed()">
+              <span class="input-unit">mg</span>
+            </div>
+          </div>
+        </div>
+        <div id="pedWarning" style="display:none;" class="notice-banner notice-ban-err">
+          <span class="icon">⚠</span>
+          <span id="pedWarnText"></span>
+        </div>
+        <div class="result-block" id="pedResult" style="display:none;">
+          <div class="result-header">
+            <span class="status-badge" id="pedBadge"></span>
+            <button class="copy-btn" onclick="copyResult('pedCopyVal')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              Copy
+            </button>
+          </div>
+          <div class="field-row" style="gap:24px;margin-top:4px;">
+            <div>
+              <div class="result-label">Single dose</div>
+              <div class="result-value" id="pedSingle"></div>
+            </div>
+            <div>
+              <div class="result-label">Daily total</div>
+              <div class="result-value" id="pedDaily"></div>
+            </div>
+          </div>
+          <span id="pedCopyVal" style="display:none"></span>
+          <div class="result-source">
+            <a href="https://bnfc.nice.org.uk/" target="_blank" rel="noopener">↗ BNF for Children</a>
+          </div>
+        </div>
+        <div class="disclaimer" style="margin-top:12px;">
+          <span class="icon">ℹ</span>
+          <span>Verify dose, indication and age limits in BNFc before use.
+            <a href="https://bnfc.nice.org.uk/" target="_blank" rel="noopener">↗ BNFc online</a></span>
+        </div>
+        <button class="clear-btn" onclick="clearSub('clin2')">Clear</button>
+      </div>
+
+      <!-- Converter -->
+      <div class="sub-panel" id="clin3">
+        <div class="field-group">
+          <div class="field-label">Conversion type</div>
+          <div class="schedule-options">
+            <label class="schedule-option selected" onclick="selectConv(this,'mgug')"><input type="radio" name="conv" checked><span class="schedule-label">mg ↔ µg</span></label>
+            <label class="schedule-option" onclick="selectConv(this,'wvmg')"><input type="radio" name="conv"><span class="schedule-label">% w/v ↔ mg/mL</span></label>
+            <label class="schedule-option" onclick="selectConv(this,'mgmmol')"><input type="radio" name="conv"><span class="schedule-label">mg/mL ↔ mmol/L (enter mol. weight)</span></label>
+            <label class="schedule-option" onclick="selectConv(this,'vitd')"><input type="radio" name="conv"><span class="schedule-label">Vitamin D: IU ↔ µg</span></label>
+            <label class="schedule-option" onclick="selectConv(this,'vite')"><input type="radio" name="conv"><span class="schedule-label">Vitamin E: IU ↔ mg</span></label>
+          </div>
+        </div>
+
+        <!-- single-input conversions (mg↔µg, %w/v, mmol/L) -->
+        <div id="convSingle" style="margin-top:14px;">
+          <div class="field-row">
+            <div class="field-group">
+              <div class="field-label" id="convLabel1">Value in mg</div>
+              <div class="input-wrap">
+                <input class="field-input" id="convVal1" type="number" oninput="calcConv()">
+                <span class="input-unit" id="convUnit1">mg</span>
+              </div>
+            </div>
+            <div class="field-group" id="convMolGroup" style="display:none;">
+              <div class="field-label">Molecular weight</div>
+              <div class="input-wrap">
+                <input class="field-input" id="convMol" type="number" oninput="calcConv()">
+                <span class="input-unit">g/mol</span>
+              </div>
+            </div>
+          </div>
+          <div class="result-block" id="convResult" style="display:none;">
+            <div class="result-label" id="convResLabel">Result</div>
+            <div class="result-value" id="convResVal" style="color:var(--accent-cyan)"></div>
+          </div>
+        </div>
+
+        <!-- bidirectional vitamin converter (type either side) -->
+        <div id="convVitamin" style="margin-top:14px;display:none;">
+          <div class="field-row">
+            <div class="field-group">
+              <div class="input-wrap">
+                <input class="field-input" id="vitIU" type="number" placeholder="IU" oninput="calcVit('iu')">
+                <span class="input-unit">IU</span>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;color:var(--text-tertiary);">↔</div>
+            <div class="field-group">
+              <div class="input-wrap">
+                <input class="field-input" id="vitMass" type="number" placeholder="amount" oninput="calcVit('mass')">
+                <span class="input-unit" id="vitMassUnit">µg</span>
+              </div>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--text-tertiary);font-family:'JetBrains Mono',monospace;" id="vitNote"></div>
+        </div>
+
+        <button class="clear-btn" onclick="clearSub('clin3')">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- TAB 5: PATIENT -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab4">
+    <div class="card">
+      <div class="sub-tabs">
+        <button class="sub-tab-btn active" onclick="switchSub('pat',0,this)">Due Date</button>
+        <button class="sub-tab-btn" onclick="switchSub('pat',1,this)">Alcohol</button>
+        <button class="sub-tab-btn" onclick="switchSub('pat',2,this)">Smoking</button>
+      </div>
+
+      <!-- Due Date -->
+      <div class="sub-panel active" id="pat0">
+        <div class="field-group">
+          <div class="field-label">First day of last period (LMP)</div>
+          <div class="input-wrap">
+            <input class="field-input dp" id="ddLMP" readonly placeholder="DD/MM/YYYY" onclick="DP.open(this,calcDueDate)">
+          </div>
+        </div>
+        <div class="result-block" id="ddResult" style="display:none;">
+          <div class="result-header">
+            <span class="status-badge badge-info">● EDD</span>
+            <button class="copy-btn" onclick="copyResult('ddCopyVal')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              Copy
+            </button>
+          </div>
+          <div class="result-label">Estimated due date</div>
+          <div class="result-value" id="ddVal" style="color:var(--accent-cyan)"></div>
+          <div class="result-sub" id="ddWeeks"></div>
+          <span id="ddCopyVal" style="display:none"></span>
+          <div class="result-source">
+            <a href="https://www.nhs.uk/pregnancy/finding-out/due-date-calculator/" target="_blank" rel="noopener">↗ NHS Due Date Calculator</a>
+            <span class="result-source-sep">·</span>
+            <a href="https://www.nice.org.uk/guidance/cg62" target="_blank" rel="noopener">↗ NICE CG62</a>
+          </div>
+        </div>
+        <div class="notice-ban-info notice-banner" style="margin-top:14px;">
+          <span class="icon">ℹ</span>
+          <span>Scan date overrides LMP-based estimate. 400 µg folic acid daily until 12 weeks.
+            <a href="https://www.nhs.uk/pregnancy/keeping-well/vitamins-supplements-and-nutrition/" target="_blank" rel="noopener">↗ NHS Vitamins in pregnancy</a></span>
+        </div>
+        <button class="clear-btn" onclick="clearSub('pat0')">Clear</button>
+      </div>
+
+      <!-- Alcohol -->
+      <div class="sub-panel" id="pat1">
+        <div class="field-label" style="margin-bottom:8px;">Quick add</div>
+        <div class="quick-add">
+          <button class="quick-pill" onclick="addDrink(568,4)">Pint 4%</button>
+          <button class="quick-pill" onclick="addDrink(175,13)">175ml wine</button>
+          <button class="quick-pill" onclick="addDrink(250,13)">250ml wine</button>
+          <button class="quick-pill" onclick="addDrink(25,40)">25ml spirit</button>
+          <button class="quick-pill" onclick="addDrink(35,40)">35ml spirit</button>
+        </div>
+        <div class="field-label" style="margin-bottom:8px;">Or enter manually</div>
+        <div class="field-row">
+          <div class="field-group">
+            <div class="field-label">Volume</div>
+            <div class="input-wrap">
+              <input class="field-input" id="alcVol" type="number" placeholder="568">
+              <span class="input-unit">mL</span>
+            </div>
+          </div>
+          <div class="field-group">
+            <div class="field-label">ABV</div>
+            <div class="input-wrap">
+              <input class="field-input" id="alcAbv" type="number" placeholder="4">
+              <span class="input-unit">%</span>
+            </div>
+          </div>
+        </div>
+        <button class="unit-btn active" style="margin-bottom:14px;" onclick="addManualDrink()">+ Add drink</button>
+
+        <div class="result-block">
+          <div class="field-row" style="gap:24px;margin-bottom:10px;">
+            <div>
+              <div class="result-label">This session</div>
+              <div class="result-value" id="alcSession" style="color:var(--accent-cyan)">0.0</div>
+            </div>
+            <div>
+              <div class="result-label">Weekly total</div>
+              <div class="result-value" id="alcWeekly" style="color:var(--accent-cyan)">0.0</div>
+            </div>
+            <div style="margin-left:auto">
+              <button class="copy-btn" onclick="copyResult('alcCopyVal')">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                Copy
+              </button>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--text-secondary);margin-bottom:4px;" id="alcLabel">UK limit: 14 units/week</div>
+          <div class="progress-track">
+            <div class="progress-fill" id="alcBar" style="width:0%;background:var(--accent-cyan)"></div>
+          </div>
+          <div class="progress-labels"><span>0</span><span>7</span><span>14</span><span>+</span></div>
+          <span id="alcCopyVal" style="display:none"></span>
+          <div class="result-source" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
+            <a href="https://www.nhs.uk/live-well/alcohol-advice/calculating-alcohol-units/" target="_blank" rel="noopener">↗ NHS — Alcohol units</a>
+            <span class="result-source-sep">·</span>
+            <a href="https://www.gov.uk/government/publications/alcohol-consumption-advice-on-low-risk-drinking" target="_blank" rel="noopener">↗ UK CMO Guidelines</a>
+          </div>
+        </div>
+        <div class="notice-ban-info notice-banner" style="margin-top:14px;">
+          <span class="icon">ℹ</span>
+          <span>Spread over 3+ days. Avoid saving all units for one or two sessions.</span>
+        </div>
+        <div style="display:flex;gap:12px;">
+          <button class="clear-btn" onclick="clearSession()">Clear session</button>
+          <button class="clear-btn" onclick="clearWeekly()">Clear weekly total</button>
+        </div>
+      </div>
+
+      <!-- Smoking -->
+      <div class="sub-panel" id="pat2">
+        <div class="field-row">
+          <div class="field-group">
+            <div class="field-label">Cigarettes per day</div>
+            <div class="input-wrap">
+              <input class="field-input" id="smkCigs" type="number" placeholder="20" oninput="calcPackYears()">
+            </div>
+          </div>
+          <div class="field-group">
+            <div class="field-label">Years smoked</div>
+            <div class="input-wrap">
+              <input class="field-input" id="smkYears" type="number" placeholder="10" oninput="calcPackYears()">
+              <span class="input-unit">yrs</span>
+            </div>
+          </div>
+        </div>
+        <div class="result-block" id="smkResult" style="display:none;">
+          <div class="result-header">
+            <span class="status-badge badge-info">PACK-YEARS</span>
+            <button class="copy-btn" onclick="copyResult('smkCopyVal')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              Copy
+            </button>
+          </div>
+          <div class="result-label">Pack-years</div>
+          <div class="result-value" id="smkVal" style="color:var(--text-primary)"></div>
+          <div class="result-sub" style="font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--text-tertiary);">Formula: (cigs/day ÷ 20) × years</div>
+          <span id="smkCopyVal" style="display:none"></span>
+          <div class="result-source">
+            <a href="https://www.nice.org.uk/guidance/ng209" target="_blank" rel="noopener">↗ NICE NG209 — Tobacco dependence</a>
+            <span class="result-source-sep">·</span>
+            <a href="https://www.nhs.uk/better-health/quit-smoking/find-your-local-stop-smoking-service/" target="_blank" rel="noopener">↗ NHS Stop Smoking</a>
+          </div>
+        </div>
+        <button class="clear-btn" onclick="clearSub('pat2')">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- TAB 6: DOSING -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab5">
+    <div class="card">
+      <div class="sub-tabs">
+        <button class="sub-tab-btn active" onclick="switchSub('dose',0,this)">Dose Timing</button>
+        <button class="sub-tab-btn" onclick="switchSub('dose',1,this)">Days' Supply</button>
+        <button class="sub-tab-btn" onclick="switchSub('dose',2,this)">Med Sync</button>
+      </div>
+
+      <!-- Dose Timing -->
+      <div class="sub-panel active" id="dose0">
+        <div class="field-row">
+          <div class="field-group">
+            <div class="field-label">Wakes up</div>
+            <div class="input-wrap"><input class="field-input" id="dtWake" type="time" value="07:00" oninput="calcDoseTiming()"></div>
+          </div>
+          <div class="field-group">
+            <div class="field-label">Goes to bed</div>
+            <div class="input-wrap"><input class="field-input" id="dtSleep" type="time" value="23:00" oninput="calcDoseTiming()"></div>
+          </div>
+        </div>
+        <div class="field-group">
+          <div class="field-label">Doses per day</div>
+          <div class="input-wrap"><input class="field-input" id="dtDoses" type="number" min="1" max="12" oninput="calcDoseTiming()"></div>
+        </div>
+        <label class="check-item" onclick="setTimeout(toggleEmpty,0)" style="margin-bottom:10px;">
+          <input type="checkbox" id="dtEmpty" onchange="toggleEmpty()">
+          Empty stomach — space around meals (1 h before / 2 h after)
+        </label>
+        <div id="dtMeals" style="display:none;">
+          <div class="field-label" style="margin-bottom:6px;">Meal times</div>
+          <div class="field-row">
+            <div class="field-group"><div class="field-label">Breakfast</div><div class="input-wrap"><input class="field-input" id="dtB" type="time" value="08:00" oninput="calcDoseTiming()"></div></div>
+            <div class="field-group"><div class="field-label">Lunch</div><div class="input-wrap"><input class="field-input" id="dtL" type="time" value="13:00" oninput="calcDoseTiming()"></div></div>
+            <div class="field-group"><div class="field-label">Dinner</div><div class="input-wrap"><input class="field-input" id="dtD" type="time" value="18:30" oninput="calcDoseTiming()"></div></div>
+          </div>
+        </div>
+        <div class="result-block" id="dtResult" style="display:none;">
+          <div class="result-header">
+            <span class="status-badge badge-info">● SUGGESTED TIMES</span>
+            <button class="copy-btn" onclick="copyResult('dtCopyVal')">Copy</button>
+          </div>
+          <div id="dtChips" class="quick-add" style="margin:8px 0 4px;"></div>
+          <div class="result-sub" id="dtNote"></div>
+          <span id="dtCopyVal" style="display:none"></span>
+        </div>
+        <div class="notice-ban-info notice-banner" style="margin-top:14px;">
+          <span class="icon">ℹ</span>
+          <span>Suggested times only — follow the directions on the label / BNF. Some medicines must be spaced evenly over a full 24 h (e.g. certain antibiotics), not only waking hours.</span>
+        </div>
+        <button class="clear-btn" onclick="clearSub('dose0')">Clear</button>
+      </div>
+
+      <!-- Days' Supply -->
+      <div class="sub-panel" id="dose1">
+        <div class="unit-toggle" style="margin-bottom:12px;">
+          <button class="unit-btn active" id="dsModeL" onclick="setSupplyMode('lasts')">How long will it last</button>
+          <button class="unit-btn" id="dsModeO" onclick="setSupplyMode('order')">Quantity to order</button>
+        </div>
+        <div class="field-row">
+          <div class="field-group">
+            <div class="field-label">Dose each time</div>
+            <div class="input-wrap"><input class="field-input" id="dsDose" type="number" oninput="calcSupply()"><span class="input-unit">tab/mL</span></div>
+          </div>
+          <div class="field-group">
+            <div class="field-label">Times</div>
+            <div class="input-wrap"><input class="field-input" id="dsFreq" type="number" oninput="calcSupply()"></div>
+          </div>
+          <div class="field-group">
+            <div class="field-label">Per</div>
+            <select class="field-input" id="dsPer" onchange="calcSupply()" style="cursor:pointer;">
+              <option value="day">day</option>
+              <option value="week">week</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-group" id="dsQtyGroup">
+          <div class="field-label">Total quantity dispensed</div>
+          <div class="input-wrap"><input class="field-input" id="dsQty" type="number" oninput="calcSupply()"><span class="input-unit">tab/mL</span></div>
+        </div>
+        <div class="field-group" id="dsWeeksGroup" style="display:none;">
+          <div class="field-label">Duration needed</div>
+          <div class="input-wrap"><input class="field-input" id="dsWeeks" type="number" oninput="calcSupply()"><span class="input-unit">weeks</span></div>
+        </div>
+        <div class="result-block" id="dsResult" style="display:none;">
+          <div class="result-header">
+            <span class="status-badge badge-info" id="dsBadge">● SUPPLY</span>
+            <button class="copy-btn" onclick="copyResult('dsCopyVal')">Copy</button>
+          </div>
+          <div class="result-label" id="dsLabel">Lasts</div>
+          <div class="result-value" id="dsVal" style="color:var(--accent-cyan)"></div>
+          <div class="result-sub" id="dsSub"></div>
+          <span id="dsCopyVal" style="display:none"></span>
+        </div>
+        <button class="clear-btn" onclick="clearSub('dose1')">Clear</button>
+      </div>
+
+      <!-- Med Sync -->
+      <div class="sub-panel" id="dose2">
+        <div class="notice-ban-info notice-banner">
+          <span class="icon">ℹ</span>
+          <span>Enter each regular medicine with how much is used per day and how much the patient has now. The tool aligns run-out dates so items can be collected together.</span>
+        </div>
+        <div id="syncItems"></div>
+        <button class="add-item-btn" onclick="addSyncItem()">+ Add medication</button>
+        <div class="field-group" style="margin-top:12px;">
+          <div class="field-label">Sync target</div>
+          <div class="schedule-options" id="syncTargetOpts">
+            <label class="schedule-option selected" onclick="setSyncTarget(this,'longest')">
+              <input type="radio" name="synct" checked>
+              <span class="schedule-label">Align to the longest-lasting medicine</span>
+            </label>
+            <label class="schedule-option" onclick="setSyncTarget(this,'custom')">
+              <input type="radio" name="synct">
+              <span class="schedule-label">Custom target
+                <input id="syncDays" type="number" class="field-input" style="height:28px;width:64px;display:inline-block;padding:0 8px;margin:0 4px;" oninput="calcSync()"> days from today</span>
+            </label>
+          </div>
+        </div>
+        <div class="result-block" id="syncResult" style="display:none;">
+          <div class="result-label">Synchronisation plan</div>
+          <div id="syncPlan"></div>
+          <div class="result-sub" id="syncCommon" style="margin-top:8px;"></div>
+        </div>
+        <div class="disclaimer" style="margin-top:12px;">
+          <span class="icon">⚠</span>
+          <span>Suggestion only — confirm quantities and any extra requests with the prescriber. Not for high-risk, as-required, or variable-dose medicines without review.</span>
+        </div>
+        <button class="clear-btn" onclick="clearSync()">Clear</button>
+      </div>
+    </div>
+
+    <div class="disclaimer">
+      <span class="icon">ℹ</span>
+      <span>Decision-support tool only. Verify against the prescription, label directions and BNF. Not a substitute for professional judgement.</span>
+    </div>
+  </div>
+
+</main>
+
+<!-- POP-OUT CALENDAR (shared) -->
+<div id="dpPop" class="dp-pop" style="display:none;">
+  <div class="dp-head">
+    <button class="dp-nav" type="button" onclick="DP.shift(-1)">‹</button>
+    <span class="dp-title" id="dpTitle"></span>
+    <button class="dp-nav" type="button" onclick="DP.shift(1)">›</button>
+  </div>
+  <div class="dp-grid" id="dpGrid"></div>
+  <div class="dp-foot"><button type="button" onclick="DP.pick(new Date())">Today</button></div>
+</div>
+
+<script>
+// ── HELPERS ──────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+// All dates render as DD/MM/YYYY (with weekday where space allows). No locale digits.
+function fmtDate(d) {
+  if(!d) return '—';
+  const dd=String(d.getDate()).padStart(2,'0'), mm=String(d.getMonth()+1).padStart(2,'0');
+  return `${dd}/${mm}/${d.getFullYear()}, ${DAYS[d.getDay()]}`;
+}
+function fmtDateShort(d) {
+  const dd=String(d.getDate()).padStart(2,'0'), mm=String(d.getMonth()+1).padStart(2,'0');
+  return `${dd}/${mm}/${d.getFullYear()}`;
+}
+// Local ISO (yyyy-mm-dd) — used as the machine-readable value behind each date field.
+function fmtISO(d) {
+  const mm=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+function addMonths(date, months) {
+  const d = new Date(date);
+  const day = d.getDate();
+  d.setMonth(d.getMonth() + months);
+  // Month-end clamp
+  if(d.getDate() !== day) d.setDate(0);
+  return d;
+}
+// ── DATE PICKER ───────────────────────────────────────────
+// Custom pop-out calendar. Each .dp input shows DD/MM/YYYY (no browser-locale
+// digits) and stores its machine value in dataset.iso (yyyy-mm-dd).
+const DP = {
+  target: null, cb: null, view: null,
+  set(input, d) { input.dataset.iso = fmtISO(d); input.value = fmtDate(d); },
+  open(input, cb) {
+    this.target = input; this.cb = cb || null;
+    const iso = input.dataset.iso;
+    this.view = iso ? new Date(iso + 'T00:00:00') : new Date();
+    this.view.setDate(1);
+    this.render();
+    const pop = $('dpPop'), r = input.getBoundingClientRect();
+    pop.style.display = 'block';
+    pop.style.top = (window.scrollY + r.bottom + 4) + 'px';
+    let left = window.scrollX + r.left;
+    if (r.left + 244 > window.innerWidth - 8) left = window.scrollX + window.innerWidth - 244 - 8;
+    pop.style.left = Math.max(window.scrollX + 8, left) + 'px';
+  },
+  shift(delta) { this.view.setMonth(this.view.getMonth() + delta); this.render(); },
+  render() {
+    const y = this.view.getFullYear(), m = this.view.getMonth();
+    $('dpTitle').textContent = `${MONTHS[m]} ${y}`;
+    const grid = $('dpGrid'); grid.innerHTML = '';
+    ['M','T','W','T','F','S','S'].forEach(d => {
+      const h = document.createElement('span'); h.className = 'dp-dow'; h.textContent = d; grid.appendChild(h);
+    });
+    const lead = (new Date(y, m, 1).getDay() + 6) % 7;      // Monday-first
+    const dim = new Date(y, m + 1, 0).getDate();
+    const sel = this.target && this.target.dataset.iso, todayIso = fmtISO(new Date());
+    for (let i = 0; i < lead; i++) { const e = document.createElement('span'); e.className = 'dp-cell empty'; grid.appendChild(e); }
+    for (let day = 1; day <= dim; day++) {
+      const cd = new Date(y, m, day), ci = fmtISO(cd);
+      const cell = document.createElement('button');
+      cell.type = 'button'; cell.className = 'dp-cell'; cell.textContent = day;
+      if (ci === sel) cell.classList.add('sel');
+      if (ci === todayIso) cell.classList.add('today');
+      cell.onclick = (ev) => { ev.stopPropagation(); DP.pick(cd); };
+      grid.appendChild(cell);
+    }
+  },
+  pick(d) {
+    if (this.target) this.set(this.target, d);
+    $('dpPop').style.display = 'none';
+    if (this.cb) this.cb();
+  }
+};
+document.addEventListener('click', e => {
+  const pop = $('dpPop');
+  if (pop.style.display !== 'block') return;
+  if (pop.contains(e.target)) return;
+  if (DP.target && (e.target === DP.target || DP.target.contains(e.target))) return;
+  pop.style.display = 'none';
+});
+function copyResult(id) {
+  const val = $(id).textContent;
+  navigator.clipboard.writeText(val).catch(()=>{});
+  event.currentTarget.classList.add('copied');
+  event.currentTarget.textContent = '✓ Copied';
+  setTimeout(()=>{ event.currentTarget.classList.remove('copied'); event.currentTarget.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>Copy`; }, 1500);
+}
+
+// ── NAVIGATION ────────────────────────────────────────────
+function switchTab(idx) {
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));
+  document.querySelectorAll('.tab-panel').forEach((p,i)=>p.classList.toggle('active',i===idx));
+  $('dpPop').style.display='none';
+  resetTab('tab'+idx);               // fresh state on every section switch
+  window.scrollTo({top:0,behavior:'auto'});
+}
+function switchSub(group, idx, btn) {
+  const panels = document.querySelectorAll(`[id^="${group}"]`);
+  panels.forEach((p,i)=>p.classList.toggle('active',i===idx));
+  btn.closest('.sub-tabs').querySelectorAll('.sub-tab-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));
+  $('dpPop').style.display='none';
+}
+// Reset a tab to a clean state: blank number inputs, dates back to today,
+// checkboxes off, results hidden, first sub-tab shown.
+function resetTab(tabId) {
+  const tab = $(tabId); if(!tab) return;
+  tab.querySelectorAll('.sub-tabs').forEach(st=>st.querySelectorAll('.sub-tab-btn').forEach((b,i)=>b.classList.toggle('active',i===0)));
+  tab.querySelectorAll('.sub-panel').forEach((p,i)=>p.classList.toggle('active',i===0));
+  tab.querySelectorAll('input').forEach(i=>{
+    if(i.type==='checkbox') i.checked=false;
+    else if(i.type==='radio') { /* keep its preset default */ }
+    else if(i.type==='time') i.value=i.defaultValue;   // restore default clock time
+    else if(i.classList.contains('dp')) DP.set(i, new Date());
+    else i.value='';
+  });
+  tab.querySelectorAll('.check-item').forEach(c=>c.classList.remove('checked'));
+  tab.querySelectorAll('[id$="Result"]').forEach(r=>r.style.display='none');
+  if(tabId==='tab4') { alcSession=0; alcWeekly=0; updateAlcohol(); }
+  if(tabId==='tab5') { if($('dtMeals')) $('dtMeals').style.display='none'; setSupplyMode('lasts'); seedSync(); }
+  recalcDates();
+}
+// Date-driven sections start populated because their dates default to today.
+function recalcDates(){ calcRx(); updateMixedItems(); calcFertility(); calcFertility2(); calcDueDate(); }
+
+// ── INIT ──────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  // Numeric fields: show the on-screen number pad, no spinner, no example digits
+  document.querySelectorAll('input[type="number"]').forEach(i=>{
+    i.setAttribute('inputmode','decimal');
+    i.removeAttribute('placeholder');
+  });
+  // Every date field defaults to today, formatted DD/MM/YYYY
+  document.querySelectorAll('.dp').forEach(i=>DP.set(i, new Date()));
+  seedSync();          // start Med Sync with two blank rows
+  recalcDates();
+});
+
+// ── BMI ───────────────────────────────────────────────────
+let heightMode = 'ftin', weightMode = 'kg';   // ft/in is the common UK input
+function toggleUnit(btn, type) {
+  btn.closest('.unit-toggle').querySelectorAll('.unit-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  if(type==='h') {
+    heightMode = btn.textContent.trim()==='cm'?'cm':'ftin';
+    $('heightCm').style.display = heightMode==='cm'?'':'none';
+    $('heightFtIn').style.display = heightMode==='ftin'?'':'none';
+  } else {
+    weightMode = btn.textContent.trim()==='kg'?'kg':'stlb';
+    $('weightKg').style.display = weightMode==='kg'?'':'none';
+    $('weightStLb').style.display = weightMode==='stlb'?'':'none';
+  }
+  calcBMI();
+}
+function calcBMI() {
+  let hM, wKg;
+  if(heightMode==='cm') { const v=parseFloat($('bmiH').value); hM=v/100; }
+  else { const ft=parseFloat($('bmiHft').value)||0, in_=parseFloat($('bmiHin').value)||0; hM=((ft*12)+in_)*0.0254; }
+  if(weightMode==='kg') { wKg=parseFloat($('bmiW').value); }
+  else { const st=parseFloat($('bmiWst').value)||0, lb=parseFloat($('bmiWlb').value)||0; wKg=((st*14)+lb)*0.453592; }
+  if(!hM||!wKg||hM<0.5||wKg<10) { $('bmiResult').style.display='none'; return; }
+  const bmi = wKg/(hM*hM);
+  const ethnic = $('ethnicToggle').checked;
+  let cat, colour, badgeClass;
+  if(ethnic) {
+    if(bmi<18.5){cat='Underweight';colour='var(--status-warn)';badgeClass='badge-warn';}
+    else if(bmi<23){cat='Healthy weight';colour='var(--status-valid)';badgeClass='badge-valid';}
+    else if(bmi<27.5){cat='Overweight';colour='var(--status-warn)';badgeClass='badge-warn';}
+    else{cat='Obese';colour='var(--status-expired)';badgeClass='badge-error';}
+  } else {
+    if(bmi<18.5){cat='Underweight';colour='var(--status-warn)';badgeClass='badge-warn';}
+    else if(bmi<25){cat='Healthy weight';colour='var(--status-valid)';badgeClass='badge-valid';}
+    else if(bmi<30){cat='Overweight';colour='var(--status-warn)';badgeClass='badge-warn';}
+    else if(bmi<35){cat='Obese class I';colour='var(--status-expired)';badgeClass='badge-error';}
+    else if(bmi<40){cat='Obese class II';colour='var(--status-expired)';badgeClass='badge-error';}
+    else{cat='Obese class III';colour='var(--status-expired)';badgeClass='badge-error';}
+  }
+  const badge = $('bmiBadge');
+  badge.className='status-badge '+badgeClass;
+  badge.textContent='● '+cat.toUpperCase();
+  $('bmiVal').textContent=bmi.toFixed(1);
+  $('bmiVal').style.color=colour;
+  $('bmiCat').textContent=cat+(ethnic?' (ethnic minority thresholds)':'');
+  $('bmiCopyVal').textContent=`BMI: ${bmi.toFixed(1)} — ${cat}`;
+  $('bmiResult').style.display='block';
+}
+
+// ── RX VALIDITY ───────────────────────────────────────────
+let scheduleMode = '6m';
+function selectSchedule(el, mode) {
+  document.querySelectorAll('.schedule-option').forEach(o=>o.classList.remove('selected'));
+  el.classList.add('selected'); scheduleMode=mode; calcRx();
+}
+function calcRx() {
+  const rxD = $('rxDate').dataset.iso, dispD = $('dispDate').dataset.iso;
+  if(!rxD) { $('rxResult').style.display='none'; return; }
+  const rx = new Date(rxD);
+  const disp = dispD ? new Date(dispD) : new Date();
+  let expires;
+  if(scheduleMode==='6m') expires=addMonths(rx,6);
+  else { expires=new Date(rx); expires.setDate(expires.getDate()+28); }
+  const diff = Math.floor((expires-disp)/(1000*60*60*24));
+  let badgeClass, badgeText, colour;
+  if(diff<0){badgeClass='badge-error';badgeText='✗ EXPIRED';colour='var(--status-expired)';}
+  else if(diff<=7){badgeClass='badge-warn';badgeText='⚠ EXPIRING SOON';colour='var(--status-warn)';}
+  else{badgeClass='badge-valid';badgeText='✓ VALID';colour='var(--status-valid)';}
+  const badge=$('rxBadge');
+  badge.className='status-badge '+badgeClass;
+  badge.textContent=badgeText;
+  const expStr=fmtDate(expires);
+  $('rxExpiry').textContent=expStr;
+  $('rxExpiry').style.color=colour;
+  $('rxDays').textContent=diff<0?`${Math.abs(diff)} days overdue`:`${diff} days remaining`;
+  $('rxCopyVal').textContent=`Rx expires: ${expStr} (${diff<0?Math.abs(diff)+' days overdue':diff+' days remaining'})`;
+  $('rxResult').style.display='block';
+}
+
+// ── MIXED FP10 ────────────────────────────────────────────
+let mixItemCount=2;
+function updateMixedItems() {
+  const dateVal=$('mixDate').dataset.iso;
+  if(!dateVal) return;
+  const base=new Date(dateVal);
+  document.querySelectorAll('#mixedItems .rx-item').forEach((item,i)=>{
+    const sel=item.querySelector('select');
+    const mode=sel.value;
+    let expires;
+    if(mode==='6m') expires=addMonths(base,6);
+    else { expires=new Date(base); expires.setDate(expires.getDate()+28); }
+    const today=new Date(); today.setHours(0,0,0,0);
+    const diff=Math.floor((expires-today)/(1000*60*60*24));
+    const expEl=item.querySelector('.rx-item-expiry');
+    const bdgEl=item.querySelector('.status-badge');
+    expEl.textContent=fmtDateShort(expires);
+    if(diff<0){bdgEl.className='status-badge badge-error';bdgEl.textContent='✗';}
+    else if(diff<=7){bdgEl.className='status-badge badge-warn';bdgEl.textContent='⚠';}
+    else{bdgEl.className='status-badge badge-valid';bdgEl.textContent='✓';}
+  });
+}
+function addMixItem() {
+  if(mixItemCount>=8) return;
+  mixItemCount++;
+  const div=document.createElement('div');
+  div.className='rx-item';
+  div.innerHTML=`<span class="rx-item-label">Item ${mixItemCount}</span>
+    <select onchange="updateMixedItems()">
+      <option value="6m">Standard POM / Sched. 5</option>
+      <option value="28d">Schedule 2 CD</option>
+      <option value="28d">Schedule 3 CD</option>
+      <option value="28d">Schedule 4 CD</option>
+    </select>
+    <span class="rx-item-expiry">—</span>
+    <span class="status-badge" style="font-size:10px;padding:2px 6px;"></span>
+    <button class="rx-item-remove" onclick="this.closest('.rx-item').remove()">×</button>`;
+  $('mixedItems').appendChild(div);
+  updateMixedItems();
+}
+
+// ── EMERGENCY SUPPLY ──────────────────────────────────────
+let emTypeMode='pom';
+function selectEmType(el, mode) {
+  document.querySelectorAll('#emType .schedule-option').forEach(o=>o.classList.remove('selected'));
+  el.classList.add('selected'); emTypeMode=mode; updateEmergency();
+}
+function updateEmergency() {
+  const c1=$('em1').checked, c2=$('em2').checked, c3=$('em3').checked;
+  document.querySelectorAll('.check-item').forEach(i=>{
+    const cb=i.querySelector('input'); i.classList.toggle('checked',cb.checked);
+  });
+  const allMet=c1&&c2&&c3;
+  const el=$('emResult');
+  let html='';
+  if(emTypeMode==='cd123') {
+    html=`<div class="result-block"><div class="result-header"><span class="status-badge badge-error">✗ CANNOT SUPPLY</span></div>
+      <div class="result-value" style="color:var(--status-expired);font-size:20px;">Schedule 1/2/3 CD</div>
+      <div class="result-sub">Emergency supply not permitted in law.</div>
+      <div style="font-size:11px;color:var(--text-tertiary);margin-top:8px;">Exception: phenobarbitone / phenobarbital for epilepsy — pharmacist discretion.</div>
+      <div class="result-source"><a href="https://cpe.org.uk/wp-content/uploads/2018/07/269177-Service-Spec-2018-2021.pdf" target="_blank" rel="noopener">↗ CPE Emergency Supply Spec</a> · <a href="https://www.legislation.gov.uk/uksi/2001/3998/contents" target="_blank" rel="noopener">↗ Misuse of Drugs Regs 2001</a></div></div>`;
+  } else if(!allMet) {
+    html=`<div class="result-block"><div class="status-badge badge-error">✗ CRITERIA NOT MET</div>
+      <div class="result-sub" style="margin-top:8px;">All three legal criteria must be satisfied before supply.</div></div>`;
+  } else {
+    let maxSupply, src;
+    if(emTypeMode==='pom'){maxSupply='30 days';src='CPE Emergency Supply Spec';}
+    else if(emTypeMode==='cd45'){maxSupply='5 days';src='Bucks LPC / CPE';}
+    else{maxSupply='Smallest manufacturer\'s pack';src='CPE Emergency Supply Spec';}
+    html=`<div class="result-block"><div class="result-header"><span class="status-badge badge-valid">● MAY SUPPLY</span>
+      <button class="copy-btn" onclick="navigator.clipboard.writeText('Emergency supply: ${maxSupply}')">Copy</button></div>
+      <div class="result-label">Maximum supply</div>
+      <div class="result-value" style="color:var(--status-valid)">${maxSupply}</div>
+      <div class="result-source"><a href="https://cpe.org.uk/wp-content/uploads/2018/07/269177-Service-Spec-2018-2021.pdf" target="_blank" rel="noopener">↗ ${src}</a></div></div>`;
+  }
+  el.innerHTML=html; el.style.display='block';
+}
+function clearEmergency() {
+  ['em1','em2','em3'].forEach(id=>$(id).checked=false);
+  document.querySelectorAll('.check-item').forEach(i=>i.classList.remove('checked'));
+  $('emResult').style.display='none';
+}
+
+// ── FERTILITY ─────────────────────────────────────────────
+function calcFertility() { doCalcFertility('fertLMP','fertCycle','fertResult','fertWindow','fertOvulation','fertNextPeriod','calendarStrip','fertCopyVal'); }
+function calcFertility2() { doCalcFertility('fertLMP2','fertCycle2','fertResult2','fertWindow2','fertOvulation2',null,'calendarStrip2',null); }
+function doCalcFertility(lmpId,cycleId,resId,winId,ovId,nextId,calId,copyId) {
+  const lmpVal=$(lmpId).dataset.iso;
+  if(!lmpVal){$(resId).style.display='none';return;}
+  const lmp=new Date(lmpVal);
+  const cycle=parseInt($(cycleId).value)||28;
+  const nextPeriod=new Date(lmp); nextPeriod.setDate(nextPeriod.getDate()+cycle);
+  const ovDay=new Date(nextPeriod); ovDay.setDate(ovDay.getDate()-14);
+  const winStart=new Date(ovDay); winStart.setDate(winStart.getDate()-5);
+  const winEnd=ovDay;
+  $(winId).textContent=`${fmtDateShort(winStart)} — ${fmtDateShort(winEnd)}`;
+  $(ovId).textContent=`Estimated ovulation: ${fmtDate(ovDay)}`;
+  if(nextId) $(nextId).textContent=`Next period: ${fmtDate(nextPeriod)}`;
+  if(copyId) $(copyId).textContent=`Fertile window: ${fmtDateShort(winStart)} to ${fmtDateShort(winEnd)} | Ovulation: ${fmtDate(ovDay)}`;
+  // Calendar strip
+  const strip=$(calId); strip.innerHTML='';
+  const today=new Date(); today.setHours(0,0,0,0);
+  const startCal=new Date(lmp);
+  for(let i=0;i<cycle;i++){
+    const d=new Date(startCal); d.setDate(d.getDate()+i);
+    const isOv=d.toDateString()===ovDay.toDateString();
+    const isFertile=d>=winStart&&d<=winEnd;
+    const isToday=d.toDateString()===today.toDateString();
+    const div=document.createElement('div');
+    div.className='cal-day'+(isOv?' ovulation':isFertile?' fertile':'')+(isToday?' today':'');
+    div.innerHTML=`<span class="day-name">${DAYS[d.getDay()].charAt(0)}</span><span class="day-num">${d.getDate()}</span>`;
+    strip.appendChild(div);
+  }
+  $(resId).style.display='block';
+}
+
+// ── CLINICAL ──────────────────────────────────────────────
+let crSex='M', crWeightType='actual';
+function setSex(s){
+  crSex=s;
+  $('sexM').classList.toggle('active',s==='M');
+  $('sexF').classList.toggle('active',s==='F');
+  calcCrCl();
+}
+function setWeight(t){
+  crWeightType=t;
+  ['actual','ideal','adj'].forEach(x=>$('wt'+x.charAt(0).toUpperCase()+x.slice(1)).classList.toggle('active',t===x));
+  calcCrCl();
+}
+function calcCrCl(){
+  const age=parseFloat($('crAge').value),wt=parseFloat($('crWt').value),scr=parseFloat($('crScr').value);
+  if(!age||!wt||!scr){$('crResult').style.display='none';return;}
+  const k=crSex==='M'?1.23:1.04;
+  const crcl=((140-age)*wt*k)/scr;
+  let stage,colour,badgeClass;
+  if(crcl>=90){stage='G1 (≥90)';colour='var(--status-valid)';badgeClass='badge-valid';}
+  else if(crcl>=60){stage='G2 (60–89)';colour='var(--status-valid)';badgeClass='badge-valid';}
+  else if(crcl>=45){stage='G3a (45–59)';colour='var(--status-warn)';badgeClass='badge-warn';}
+  else if(crcl>=30){stage='G3b (30–44)';colour='var(--status-warn)';badgeClass='badge-warn';}
+  else if(crcl>=15){stage='G4 (15–29)';colour='var(--status-expired)';badgeClass='badge-error';}
+  else{stage='G5 (<15)';colour='var(--status-expired)';badgeClass='badge-error';}
+  const b=$('crBadge'); b.className='status-badge '+badgeClass; b.textContent='CKD '+stage;
+  $('crVal').textContent=crcl.toFixed(1)+' mL/min';
+  $('crVal').style.color=colour;
+  $('crCKD').textContent=`CKD Stage ${stage} · Weight: ${crWeightType} · Sex: ${crSex==='M'?'Male':'Female'}`;
+  $('crCopyVal').textContent=`CrCl (C-G): ${crcl.toFixed(1)} mL/min — CKD ${stage}`;
+  $('crResult').style.display='block';
+}
+function calcBSA(){
+  const h=parseFloat($('bsaH').value),w=parseFloat($('bsaW').value);
+  if(!h||!w){$('bsaResult').style.display='none';return;}
+  const bsa=Math.sqrt((h*w)/3600);
+  $('bsaVal').textContent=bsa.toFixed(2)+' m²';
+  $('bsaCopyVal').textContent=`BSA (Mosteller): ${bsa.toFixed(2)} m²`;
+  $('bsaResult').style.display='block';
+}
+function calcPaed(){
+  const wt=parseFloat($('pedWt').value),dose=parseFloat($('pedDose').value),freq=parseFloat($('pedFreq').value)||1;
+  if(!wt||!dose){$('pedResult').style.display='none';$('pedWarning').style.display='none';return;}
+  const single=wt*dose, daily=single*freq;
+  const maxSingle=parseFloat($('pedMax').value);
+  let exceeded=false;
+  if(maxSingle&&single>maxSingle){exceeded=true;$('pedWarnText').textContent=`⚠ Exceeds maximum single dose of ${maxSingle} mg — check BNFc`;$('pedWarning').style.display='flex';}
+  else $('pedWarning').style.display='none';
+  const badge=$('pedBadge');
+  if(exceeded){badge.className='status-badge badge-error';badge.textContent='⚠ EXCEEDS MAX';}
+  else{badge.className='status-badge badge-valid';badge.textContent='✓ WITHIN RANGE';}
+  $('pedSingle').textContent=single>=1?single.toFixed(0)+' mg':single.toFixed(2)+' mg';
+  $('pedSingle').style.color=exceeded?'var(--status-expired)':'var(--text-primary)';
+  $('pedDaily').textContent=daily>=1?daily.toFixed(0)+' mg':daily.toFixed(2)+' mg';
+  $('pedCopyVal').textContent=`Paediatric dose: ${single.toFixed(0)} mg single | ${daily.toFixed(0)} mg daily`;
+  $('pedResult').style.display='block';
+}
+let convMode='mgug';
+// Vitamin factors: D — 1 µg = 40 IU. E — 1 mg dl-α-tocopherol (synthetic) = 1.10 IU.
+const VIT = { vitd:{unit:'µg', perIU:1/40,  note:'1 µg = 40 IU'},
+              vite:{unit:'mg', perIU:1/1.10, note:'1 mg dl-α-tocopherol ≈ 1.10 IU'} };
+function selectConv(el,mode){
+  document.querySelectorAll('#clin3 .schedule-option').forEach(o=>o.classList.remove('selected'));
+  el.classList.add('selected'); convMode=mode;
+  const isVit = mode==='vitd'||mode==='vite';
+  $('convSingle').style.display = isVit?'none':'';
+  $('convVitamin').style.display = isVit?'':'none';
+  if(isVit){
+    $('vitMassUnit').textContent=VIT[mode].unit;
+    $('vitNote').textContent=VIT[mode].note;
+    $('vitIU').value=''; $('vitMass').value='';
+  } else {
+    const labels={mgug:['Value in mg','mg'],wvmg:['% w/v','%'],mgmmol:['mg/mL','mg/mL']};
+    $('convLabel1').textContent=labels[mode][0]; $('convUnit1').textContent=labels[mode][1];
+    $('convMolGroup').style.display = mode==='mgmmol'?'':'none';
+    $('convVal1').value=''; $('convMol').value=''; $('convResult').style.display='none';
+  }
+}
+function calcConv(){
+  const v=parseFloat($('convVal1').value);
+  if(!v){$('convResult').style.display='none';return;}
+  let res, lbl;
+  if(convMode==='mgug'){res=(v*1000).toLocaleString('en-GB')+' µg';lbl='= µg';}
+  else if(convMode==='wvmg'){res=(v*10).toFixed(2)+' mg/mL';lbl='= mg/mL';}
+  else if(convMode==='mgmmol'){
+    const mol=parseFloat($('convMol').value);
+    if(!mol){$('convResult').style.display='none';return;}
+    res=(v/mol*1000).toFixed(3)+' mmol/L';lbl='= mmol/L';
+  }
+  $('convResLabel').textContent=lbl; $('convResVal').textContent=res;
+  $('convResult').style.display='block';
+}
+// Bidirectional vitamin converter — typing one side fills the other.
+function calcVit(from){
+  const f=VIT[convMode]; if(!f) return;
+  if(from==='iu'){
+    const iu=parseFloat($('vitIU').value);
+    $('vitMass').value = iu? +(iu*f.perIU).toFixed(3) : '';
+  } else {
+    const mass=parseFloat($('vitMass').value);
+    $('vitIU').value = mass? +(mass/f.perIU).toFixed(2) : '';
+  }
+}
+
+// ── DUE DATE ──────────────────────────────────────────────
+function calcDueDate(){
+  const v=$('ddLMP').dataset.iso; if(!v){$('ddResult').style.display='none';return;}
+  const lmp=new Date(v);
+  const edd=new Date(lmp); edd.setDate(edd.getDate()+280);
+  const today=new Date(); today.setHours(0,0,0,0);
+  const days=Math.floor((today-lmp)/(1000*60*60*24));
+  const weeks=Math.floor(days/7), rem=days%7;
+  $('ddVal').textContent=fmtDate(edd);
+  $('ddWeeks').textContent=days>=0&&days<=280?`Currently: ${weeks} weeks + ${rem} days`:'LMP in the future';
+  $('ddCopyVal').textContent=`EDD: ${fmtDate(edd)}`;
+  $('ddResult').style.display='block';
+}
+
+// ── ALCOHOL ───────────────────────────────────────────────
+let alcSession=0, alcWeekly=0;
+function addDrink(ml,abv){ alcSession+=ml*abv/1000; alcWeekly+=ml*abv/1000; updateAlcohol(); }
+function addManualDrink(){
+  const ml=parseFloat($('alcVol').value),abv=parseFloat($('alcAbv').value);
+  if(!ml||!abv) return;
+  addDrink(ml,abv); $('alcVol').value=''; $('alcAbv').value='';
+}
+function updateAlcohol(){
+  $('alcSession').textContent=alcSession.toFixed(1)+' units';
+  $('alcWeekly').textContent=alcWeekly.toFixed(1)+' units';
+  $('alcCopyVal').textContent=`Alcohol — Session: ${alcSession.toFixed(1)} units | Weekly total: ${alcWeekly.toFixed(1)} units`;
+  const pct=Math.min(alcWeekly/14*100,110);
+  const bar=$('alcBar');
+  bar.style.width=pct+'%';
+  if(alcWeekly>14) bar.style.background='var(--status-expired)';
+  else if(alcWeekly>10) bar.style.background='var(--status-warn)';
+  else bar.style.background='var(--accent-cyan)';
+  const lbl=$('alcLabel');
+  if(alcWeekly>14) lbl.textContent=`⚠ Over UK limit — ${alcWeekly.toFixed(1)} / 14 units`;
+  else lbl.textContent=`UK limit: 14 units/week · ${alcWeekly.toFixed(1)} used`;
+  lbl.style.color=alcWeekly>14?'var(--status-expired)':alcWeekly>10?'var(--status-warn)':'var(--text-secondary)';
+}
+function clearSession(){alcSession=0; updateAlcohol();}
+function clearWeekly(){alcSession=0; alcWeekly=0; updateAlcohol();}
+
+// ── PACK-YEARS ────────────────────────────────────────────
+function calcPackYears(){
+  const c=parseFloat($('smkCigs').value),y=parseFloat($('smkYears').value);
+  if(!c||!y){$('smkResult').style.display='none';return;}
+  const py=(c/20)*y;
+  $('smkVal').textContent=py.toFixed(1);
+  $('smkCopyVal').textContent=`Pack-years: ${py.toFixed(1)}`;
+  $('smkResult').style.display='block';
+}
+
+// ── AGE ───────────────────────────────────────────────────
+function calcAge(){
+  const iso=$('ageDOB').dataset.iso; if(!iso){$('ageResult').style.display='none';return;}
+  const dob=new Date(iso+'T00:00:00'), today=new Date(); today.setHours(0,0,0,0);
+  if(dob>today){$('ageVal').textContent='—';$('ageSub').textContent='Date of birth is in the future';$('ageResult').style.display='block';return;}
+  let y=today.getFullYear()-dob.getFullYear();
+  let m=today.getMonth()-dob.getMonth();
+  let d=today.getDate()-dob.getDate();
+  if(d<0){ m--; d+=new Date(today.getFullYear(),today.getMonth(),0).getDate(); }
+  if(m<0){ y--; m+=12; }
+  const totalDays=Math.floor((today-dob)/86400000);
+  const totalWeeks=Math.floor(totalDays/7);
+  $('ageVal').textContent=`${y} y ${m} m ${d} d`;
+  $('ageSub').textContent=`${totalWeeks.toLocaleString('en-GB')} weeks · ${totalDays.toLocaleString('en-GB')} days total`;
+  $('ageCopyVal').textContent=`Age: ${y} years ${m} months ${d} days (${totalDays} days)`;
+  $('ageResult').style.display='block';
+}
+
+// ── DURATION / LENGTH ─────────────────────────────────────
+let durMode='between', durDir='after';
+function setDurMode(m){
+  durMode=m;
+  $('durMb').classList.toggle('active',m==='between');
+  $('durMa').classList.toggle('active',m==='addsub');
+  $('durBetween').style.display=m==='between'?'':'none';
+  $('durAddSub').style.display=m==='addsub'?'':'none';
+  calcDuration();
+}
+function setDurDir(d){
+  durDir=d;
+  $('durDirAfter').classList.toggle('active',d==='after');
+  $('durDirBefore').classList.toggle('active',d==='before');
+  calcDuration();
+}
+function calcDuration(){
+  if(durMode==='between'){
+    const s=$('durStart').dataset.iso, e=$('durEnd').dataset.iso;
+    if(!s||!e){$('durResult').style.display='none';return;}
+    const st=new Date(s+'T'+($('durStartT').value||'00:00')+':00');
+    const en=new Date(e+'T'+($('durEndT').value||'00:00')+':00');
+    let ms=en-st; const sign=ms<0?'−':''; ms=Math.abs(ms);
+    const totalMin=Math.round(ms/60000);
+    const days=Math.floor(totalMin/1440), hrs=Math.floor((totalMin%1440)/60), mins=totalMin%60;
+    const totalHours=ms/3600000, totalDays=ms/86400000, totalWeeks=totalDays/7;
+    let main = days>0 ? `${sign}${days} d ${hrs} h ${mins} m` : `${sign}${hrs} h ${mins} m`;
+    $('durVal').textContent=main;
+    $('durSub').textContent=`${sign}${totalWeeks.toFixed(2)} weeks · ${sign}${totalDays.toFixed(2)} days · ${sign}${totalHours.toFixed(1)} hours`;
+    $('durCopyVal').textContent=`Duration: ${main} (${totalDays.toFixed(2)} days)`;
+    $('durBadge').textContent = en<st ? '● END BEFORE START' : '● DURATION';
+    $('durResult').style.display='block';
+  } else {
+    const b=$('durBase').dataset.iso, amt=parseFloat($('durAmt').value);
+    if(!b||!amt){$('durResult2').style.display='none';return;}
+    const unit=$('durUnit').value, n=durDir==='before'?-amt:amt;
+    const res=new Date(b+'T00:00:00');
+    if(unit==='days') res.setDate(res.getDate()+n);
+    else if(unit==='weeks') res.setDate(res.getDate()+n*7);
+    else if(unit==='months') res.setMonth(res.getMonth()+n);
+    else res.setFullYear(res.getFullYear()+n);
+    $('durVal2').textContent=fmtDate(res);
+    $('durCopyVal2').textContent=`${amt} ${unit} ${durDir}: ${fmtDate(res)}`;
+    $('durResult2').style.display='block';
+  }
+}
+
+// ── DOSE TIMING ───────────────────────────────────────────
+function minToHHMM(m){ m=((m%1440)+1440)%1440; return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
+function hhmmToMin(v){ if(!v) return null; const [h,m]=v.split(':').map(Number); return h*60+m; }
+function toggleEmpty(){ $('dtMeals').style.display=$('dtEmpty').checked?'':'none'; calcDoseTiming(); }
+function calcDoseTiming(){
+  const n=parseInt($('dtDoses').value);
+  let wake=hhmmToMin($('dtWake').value), sleep=hhmmToMin($('dtSleep').value);
+  if(!n||n<1||wake==null||sleep==null){$('dtResult').style.display='none';return;}
+  if(sleep<=wake) sleep+=1440;                         // bedtime after midnight
+  const span=sleep-wake;
+  let times=[], note='';
+  if($('dtEmpty').checked){
+    // Build empty-stomach windows: 1 h before and 2 h after each meal
+    const meals=['dtB','dtL','dtD'].map(id=>hhmmToMin($(id).value)).filter(v=>v!=null);
+    let slots=[];
+    meals.forEach(mt=>{ slots.push(mt-60); slots.push(mt+120); });
+    slots=slots.filter(s=>s>=wake&&s<=sleep).sort((a,b)=>a-b);
+    // de-duplicate near-identical slots (<45 min apart)
+    slots=slots.filter((s,i)=>i===0||s-slots[i-1]>=45);
+    if(slots.length>=n){
+      const step=(slots.length-1)/(n-1||1);
+      for(let i=0;i<n;i++) times.push(slots[Math.round(i*step)]);
+    } else { times=slots; }
+    note=`Spaced around meals: 1 h before or 2 h after. ${times.length<n?'Fewer empty-stomach slots than doses — review with patient.':''}`;
+  } else {
+    if(n===1){ times=[wake+Math.round(span/2)]; }
+    else { const step=span/(n-1); for(let i=0;i<n;i++) times.push(Math.round(wake+i*step)); }
+    const gap=n>1?(span/(n-1)):0;
+    note=n>1?`≈ every ${(gap/60).toFixed(1)} h across waking hours (${(span/60).toFixed(0)} h awake).`:`Once daily — mid-waking suggestion.`;
+  }
+  const chips=times.map(minToHHMM);
+  $('dtChips').innerHTML=chips.map(t=>`<span class="time-chip">${t}</span>`).join('');
+  $('dtNote').textContent=note;
+  $('dtCopyVal').textContent=`Suggested dose times: ${chips.join(', ')}`;
+  $('dtResult').style.display='block';
+}
+
+// ── DAYS' SUPPLY ──────────────────────────────────────────
+let supplyMode='lasts';
+function setSupplyMode(m){
+  supplyMode=m;
+  $('dsModeL').classList.toggle('active',m==='lasts');
+  $('dsModeO').classList.toggle('active',m==='order');
+  $('dsQtyGroup').style.display=m==='lasts'?'':'none';
+  $('dsWeeksGroup').style.display=m==='order'?'':'none';
+  calcSupply();
+}
+function weeklySchedule(perWeek){
+  const names=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  if(perWeek>=7) return 'every day';
+  const step=7/perWeek, picks=[];
+  for(let i=0;i<perWeek;i++) picks.push(names[Math.round(i*step)%7]);
+  return picks.join(' / ');
+}
+function calcSupply(){
+  const dose=parseFloat($('dsDose').value), freq=parseFloat($('dsFreq').value), per=$('dsPer').value;
+  if(!dose||!freq){$('dsResult').style.display='none';return;}
+  const perDay = per==='day' ? dose*freq : dose*freq/7;     // amount used per day
+  if(supplyMode==='lasts'){
+    const qty=parseFloat($('dsQty').value);
+    if(!qty){$('dsResult').style.display='none';return;}
+    const days=qty/perDay;
+    const runOut=new Date(); runOut.setHours(0,0,0,0); runOut.setDate(runOut.getDate()+Math.floor(days));
+    $('dsLabel').textContent='Lasts';
+    $('dsVal').textContent=`${days.toFixed(1)} days`;
+    let sub=`${(days/7).toFixed(1)} weeks · runs out ${fmtDateShort(runOut)} (${perDay.toFixed(2)}/day)`;
+    if(per==='week') sub+=` · e.g. take on ${weeklySchedule(freq)}`;
+    $('dsSub').textContent=sub;
+    $('dsCopyVal').textContent=`Supply lasts ${days.toFixed(1)} days (runs out ${fmtDateShort(runOut)})`;
+  } else {
+    const weeks=parseFloat($('dsWeeks').value);
+    if(!weeks){$('dsResult').style.display='none';return;}
+    const qty=Math.ceil(perDay*weeks*7);
+    $('dsLabel').textContent='Quantity needed';
+    $('dsVal').textContent=`${qty.toLocaleString('en-GB')} tab/mL`;
+    let sub=`to cover ${weeks} weeks at ${perDay.toFixed(2)}/day`;
+    if(per==='week') sub+=` · e.g. take on ${weeklySchedule(freq)}`;
+    $('dsSub').textContent=sub;
+    $('dsCopyVal').textContent=`Order ${qty} to cover ${weeks} weeks`;
+  }
+  $('dsResult').style.display='block';
+}
+
+// ── MED SYNC ──────────────────────────────────────────────
+let syncCount=0, syncTargetMode='longest';
+function addSyncItem(name='',use='',stock=''){
+  syncCount++;
+  const row=document.createElement('div');
+  row.className='sync-item';
+  row.innerHTML=`<input type="text" placeholder="Medicine ${syncCount}" value="${name}" oninput="calcSync()">
+    <input type="number" inputmode="decimal" placeholder="/day" value="${use}" oninput="calcSync()">
+    <input type="number" inputmode="decimal" placeholder="stock" value="${stock}" oninput="calcSync()">
+    <button class="rx-item-remove" onclick="this.closest('.sync-item').remove();calcSync()">×</button>`;
+  $('syncItems').appendChild(row);
+}
+function seedSync(){
+  $('syncItems').innerHTML=''; syncCount=0;
+  const head=document.createElement('div');
+  head.className='sync-head';
+  head.innerHTML=`<span>Medicine</span><span>Use/day</span><span>In hand</span><span></span>`;
+  $('syncItems').appendChild(head);
+  addSyncItem(); addSyncItem();
+}
+function setSyncTarget(el,mode){
+  document.querySelectorAll('#syncTargetOpts .schedule-option').forEach(o=>o.classList.remove('selected'));
+  el.classList.add('selected'); syncTargetMode=mode; calcSync();
+}
+function calcSync(){
+  const rows=[...document.querySelectorAll('#syncItems .sync-item')].map(r=>{
+    const [n,u,s]=r.querySelectorAll('input');
+    const use=parseFloat(u.value), stock=parseFloat(s.value);
+    return {name:n.value||'(unnamed)', use, stock, days:(use>0?stock/use:NaN)};
+  }).filter(r=>r.use>0 && !isNaN(r.stock));
+  if(rows.length<2){$('syncResult').style.display='none';return;}
+  let target;
+  if(syncTargetMode==='custom'){ target=parseFloat($('syncDays').value); if(!target){$('syncResult').style.display='none';return;} }
+  else { target=Math.max(...rows.map(r=>r.days)); }
+  const plan=rows.map(r=>{
+    const gap=target-r.days;            // +ve = needs more, -ve = surplus
+    let action;
+    if(Math.abs(gap)<0.5) action='✓ aligned — no change';
+    else if(gap>0) action=`request +${Math.ceil(gap*r.use)} (≈ ${gap.toFixed(0)} d short)`;
+    else action=`surplus ${Math.abs(gap).toFixed(0)} d — withhold / don't reorder`;
+    return `<div class="sync-plan-row"><span class="sync-plan-name">${r.name}</span><span class="sync-plan-action">${r.days.toFixed(0)} d left · ${action}</span></div>`;
+  }).join('');
+  $('syncPlan').innerHTML=plan;
+  const common=new Date(); common.setHours(0,0,0,0); common.setDate(common.getDate()+Math.floor(target));
+  $('syncCommon').textContent=`Aligned to ${target.toFixed(0)} days — next common collection ≈ ${fmtDateShort(common)}.`;
+  $('syncResult').style.display='block';
+}
+function clearSync(){ seedSync(); $('syncResult').style.display='none'; }
+
+// ── CLEAR ─────────────────────────────────────────────────
+function clearTab(tabId) {
+  $(tabId).querySelectorAll('input').forEach(i=>{if(i.type!=='radio'&&i.type!=='checkbox')i.value='';else if(i.type==='checkbox')i.checked=false;});
+  $(tabId).querySelectorAll('.result-block,.result-block').forEach(r=>r.style.display='none');
+}
+function clearSub(subId) {
+  $(subId).querySelectorAll('input').forEach(i=>{if(i.type!=='radio'&&i.type!=='checkbox')i.value='';else if(i.type==='checkbox')i.checked=false;});
+  $(subId).querySelectorAll('.result-block,[id$="Result"]').forEach(r=>r.style.display='none');
+}
+</script>
+</body>
+</html>

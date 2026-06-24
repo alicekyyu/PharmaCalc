@@ -1,0 +1,19 @@
+# dependencies
+node_modules/
+
+# build output (Netlify builds this for you — never commit it)
+dist/
+
+# local dev logs
+vite-dev.log
+vite-dev.err.log
+*.local
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
