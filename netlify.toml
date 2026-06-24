@@ -8,7 +8,16 @@
 [build.environment]
   NODE_VERSION = "20"
 
-# Single-page app fallback: serve index.html for any path so client routes
+# Missing hashed assets must 404 cleanly, NOT fall through to the SPA fallback.
+# Otherwise a stale index.html requesting a deleted bundle gets served index.html
+# (text/html), causing a "MIME type" error and a blank screen. force=false means
+# this only fires when no real file matches, so live assets are unaffected.
+[[redirects]]
+  from = "/assets/*"
+  to = "/assets/:splat"
+  status = 404
+
+# Single-page app fallback: serve index.html for any other path so client routes
 # (and hard refreshes) don't 404. Harmless for the current single-view app.
 [[redirects]]
   from = "/*"
