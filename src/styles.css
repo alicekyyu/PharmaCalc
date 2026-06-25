@@ -507,6 +507,18 @@ a:hover {
   margin-top: 5px;
 }
 
+.result-formula {
+  margin-top: 8px;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .muted {
   color: var(--text-tertiary);
 }
@@ -1143,6 +1155,21 @@ a:hover {
   margin-top: 3px;
   color: var(--text-secondary);
   font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.history-input {
+  margin-bottom: 3px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.history-formula {
+  margin-top: 4px;
+  color: var(--text-tertiary);
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
   overflow-wrap: anywhere;
 }
 

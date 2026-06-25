@@ -486,14 +486,15 @@ function SourceLinks({ links }) {
   );
 }
 
-function ResultBlock({ category, badge, tone = "info", label, value, sub, links = [], copyText, children }) {
+function ResultBlock({ category, badge, tone = "info", label, value, sub, input, formula, links = [], copyText, children }) {
   const ctxCategory = useContext(CategoryContext);
   const cat = category || ctxCategory;
   const valueText = value == null ? "" : String(value);
   const subText = typeof sub === "string" ? sub : "";
+  const inputText = typeof input === "string" ? input : "";
   const summary = copyText || (valueText ? `${label || badge || ""}: ${valueText}`.trim() : "");
   useAutoRecord(
-    cat ? { category: cat, title: label || badge || cat, value: valueText, sub: subText, summary } : null
+    cat ? { category: cat, title: label || badge || cat, value: valueText, sub: subText, input: inputText, formula: formula || "", summary } : null
   );
   if (!value && !children) return null;
   return (
@@ -506,6 +507,7 @@ function ResultBlock({ category, badge, tone = "info", label, value, sub, links 
       {value ? <div className={`result-value text-${tone}`}>{value}</div> : null}
       {sub ? <div className="result-sub">{sub}</div> : null}
       {children}
+      {formula ? <div className="result-formula">{formula}</div> : null}
       {links.length ? <SourceLinks links={links} /> : null}
     </section>
   );
@@ -570,8 +572,10 @@ function HistoryPanel({ onClose }) {
                   <span className="history-cat">{rec.category}</span>
                   <span className="history-time">{fmtDateTime(rec.ts)}</span>
                 </div>
+                {rec.input ? <div className="history-input">Input: {rec.input}</div> : null}
                 <div className="history-summary">{rec.summary}</div>
                 {rec.sub ? <div className="history-sub">{rec.sub}</div> : null}
+                {rec.formula ? <div className="history-formula">{rec.formula}</div> : null}
               </div>
               <button className="history-del" type="button" aria-label="Delete record" onClick={() => remove(rec.id)}>
                 <TrashIcon />
@@ -652,13 +656,25 @@ function BmiTab() {
   const [heightCm, setHeightCm] = useState("");
   const [feet, setFeet] = useState("");
   const [inches, setInches] = useState("");
+  const [inchTotal, setInchTotal] = useState("");
   const [weightKg, setWeightKg] = useState("");
   const [stone, setStone] = useState("");
   const [pounds, setPounds] = useState("");
+  const [lb, setLb] = useState("");
 
   const result = useMemo(() => {
-    const hM = heightMode === "cm" ? n(heightCm) / 100 : (n(feet) * 12 + n(inches)) * 0.0254;
-    const wKg = weightMode === "kg" ? n(weightKg) : (n(stone) * 14 + n(pounds)) * 0.453592;
+    const hM =
+      heightMode === "cm"
+        ? n(heightCm) / 100
+        : heightMode === "in"
+          ? n(inchTotal) * 0.0254
+          : (n(feet) * 12 + n(inches)) * 0.0254;
+    const wKg =
+      weightMode === "kg"
+        ? n(weightKg)
+        : weightMode === "lb"
+          ? n(lb) * 0.453592
+          : (n(stone) * 14 + n(pounds)) * 0.453592;
     if (!hM || !wKg || hM < 0.5 || wKg < 10) return null;
     const bmi = wKg / (hM * hM);
     let category = "Healthy weight";
@@ -676,8 +692,15 @@ function BmiTab() {
     else if (bmi < 40) [category, tone] = ["Obese class II", "error"];
     else [category, tone] = ["Obese class III", "error"];
 
-    return { bmi: bmi.toFixed(1), category, tone };
-  }, [ethnic, feet, heightCm, heightMode, inches, pounds, stone, weightKg, weightMode]);
+    const heightStr =
+      heightMode === "cm" ? `${n(heightCm)} cm` : heightMode === "in" ? `${n(inchTotal)} in` : `${n(feet)}ft ${n(inches)}in`;
+    const weightStr =
+      weightMode === "kg" ? `${n(weightKg)} kg` : weightMode === "lb" ? `${n(lb)} lb` : `${n(stone)}st ${n(pounds)}lb`;
+    const inputStr = `${heightStr}, ${weightStr}`;
+    const formula = `BMI = ${wKg.toFixed(1)} kg / (${hM.toFixed(2)} m)² = ${bmi.toFixed(1)}`;
+
+    return { bmi: bmi.toFixed(1), category, tone, inputStr, formula };
+  }, [ethnic, feet, heightCm, heightMode, inchTotal, inches, lb, pounds, stone, weightKg, weightMode]);
 
   return (
     <CategoryContext.Provider value="BMI">
@@ -691,12 +714,15 @@ function BmiTab() {
             onChange={setHeightMode}
             options={[
               { value: "cm", label: "cm" },
-              { value: "ftin", label: "ft / in" }
+              { value: "ftin", label: "ft / in" },
+              { value: "in", label: "in" }
             ]}
           />
         </div>
         {heightMode === "cm" ? (
           <NumberField label="" value={heightCm} onChange={setHeightCm} unit="cm" min={50} max={250} />
+        ) : heightMode === "in" ? (
+          <NumberField label="" value={inchTotal} onChange={setInchTotal} unit="in total" min={20} max={100} />
         ) : (
           <div className="field-row">
             <NumberField label="Feet" value={feet} onChange={setFeet} unit="ft" min={1} max={8} />
@@ -712,12 +738,15 @@ function BmiTab() {
             onChange={setWeightMode}
             options={[
               { value: "kg", label: "kg" },
+              { value: "lb", label: "lb" },
               { value: "stlb", label: "st / lb" }
             ]}
           />
         </div>
         {weightMode === "kg" ? (
           <NumberField label="" value={weightKg} onChange={setWeightKg} unit="kg" min={10} max={350} />
+        ) : weightMode === "lb" ? (
+          <NumberField label="" value={lb} onChange={setLb} unit="lb total" min={20} max={800} />
         ) : (
           <div className="field-row">
             <NumberField label="Stone" value={stone} onChange={setStone} unit="st" min={1} max={55} />
@@ -740,6 +769,8 @@ function BmiTab() {
             label="BMI"
             value={result.bmi}
             sub={`${result.category}${ethnic ? " - ethnic thresholds active" : ""}`}
+            input={result.inputStr}
+            formula={result.formula}
             links={sources.bmi}
             copyText={`BMI: ${result.bmi} - ${result.category}`}
           />
@@ -752,7 +783,7 @@ function BmiTab() {
           paediatric centile charts.
         </Notice>
         <button className="clear-btn" type="button" onClick={() => {
-          setHeightCm(""); setFeet(""); setInches(""); setWeightKg(""); setStone(""); setPounds(""); setEthnic(false);
+          setHeightCm(""); setFeet(""); setInches(""); setInchTotal(""); setWeightKg(""); setStone(""); setPounds(""); setLb(""); setEthnic(false);
         }}>
           Clear
         </button>
@@ -825,6 +856,7 @@ function AgeTool() {
           label="Age"
           value={`${result.years} y ${result.months} m ${result.days} d`}
           sub={`${result.totalWeeks.toLocaleString("en-GB")} weeks | ${result.totalDays.toLocaleString("en-GB")} days total`}
+          input={`DOB ${fmtShort(fromISO(dob))} → today ${fmtShort(new Date())}`}
           copyText={`Age: ${result.years} years ${result.months} months ${result.days} days`}
         />
       ) : null}
@@ -1342,7 +1374,8 @@ function CrClTool() {
     else if (crcl < 45) [stage, tone] = ["G3b (30-44)", "warn"];
     else if (crcl < 60) [stage, tone] = ["G3a (45-59)", "warn"];
     else if (crcl < 90) [stage, tone] = ["G2 (60-89)", "valid"];
-    return { crcl, stage, tone };
+    const formula = `CrCl = ((140 − ${n(age)}) × ${n(weight)} × ${k}) / ${n(scr)} = ${numberText(crcl)} mL/min`;
+    return { crcl, stage, tone, formula };
   }, [age, scr, sex, weight]);
 
   return (
@@ -1387,6 +1420,8 @@ function CrClTool() {
           label="CrCl (Cockcroft-Gault)"
           value={`${numberText(result.crcl)} mL/min`}
           sub={`Weight: ${weightType} | Sex: ${sex === "M" ? "Male" : "Female"}`}
+          input={`Age ${n(age)}, ${sex === "M" ? "Male" : "Female"}, ${n(weight)} kg (${weightType}), SCr ${n(scr)} µmol/L`}
+          formula={result.formula}
           links={sources.crcl}
           copyText={`CrCl (C-G): ${numberText(result.crcl)} mL/min - CKD ${result.stage}`}
         />
@@ -1415,7 +1450,8 @@ function BsaTool() {
           tone="info"
           label="BSA (Mosteller)"
           value={`${numberText(bsa, 2)} sq m`}
-          sub="Formula: sqrt(height cm x weight kg / 3600)"
+          input={`${n(height)} cm, ${n(weight)} kg`}
+          formula={`BSA = √(${n(height)} × ${n(weight)} / 3600) = ${numberText(bsa, 2)} m²`}
           copyText={`BSA (Mosteller): ${numberText(bsa, 2)} sq m`}
         />
       ) : null}
@@ -1450,6 +1486,8 @@ function PaediatricTool() {
           badge={exceeded ? "EXCEEDS MAX" : "WITHIN RANGE"}
           tone={exceeded ? "error" : "valid"}
           label="Calculated dose"
+          input={`${n(weight)} kg × ${n(dose)} mg/kg${n(frequency) ? ` × ${n(frequency)}/day` : ""}`}
+          formula={`Single = ${n(weight)} × ${n(dose)} = ${numberText(result.single, result.single < 1 ? 2 : 0)} mg${n(frequency) ? ` | Daily = × ${n(frequency)} = ${numberText(result.daily, result.daily < 1 ? 2 : 0)} mg` : ""}`}
           links={sources.bnfc}
           copyText={`Paediatric dose: ${numberText(result.single, 0)} mg single | ${numberText(result.daily, 0)} mg daily`}
         >
@@ -1529,7 +1567,7 @@ function ConverterTool() {
         <>
           <NumberField label={labels[mode][0]} value={value} onChange={setValue} unit={labels[mode][1]} min={0} />
           {mode === "mgmmol" ? <NumberField label="Molecular weight" value={mw} onChange={setMw} unit="g/mol" min={0} /> : null}
-          {result ? <ResultBlock badge="RESULT" tone="info" label="Converted value" value={result} copyText={`Converted value: ${result}`} /> : null}
+          {result ? <ResultBlock badge="RESULT" tone="info" label="Converted value" value={result} input={`${n(value)} ${labels[mode][1]}${mode === "mgmmol" ? `, MW ${n(mw)}` : ""}`} copyText={`Converted value: ${result}`} /> : null}
         </>
       )}
       <button className="clear-btn" type="button" onClick={resetAll}>
@@ -1575,6 +1613,8 @@ function DueDateTool() {
           label="Estimated due date"
           value={fmtDate(result.edd, true)}
           sub={result.sub}
+          input={`LMP ${fmtShort(fromISO(lmp))}`}
+          formula={`EDD = LMP + 280 days = ${fmtShort(result.edd)}`}
           links={sources.dueDate}
           copyText={`EDD: ${fmtDate(result.edd, true)}`}
         />
@@ -1683,7 +1723,8 @@ function SmokingTool() {
           tone="info"
           label="Pack-years"
           value={numberText(packYears)}
-          sub="Formula: (cigarettes/day / 20) x years smoked"
+          input={`${n(cigs)} cig/day for ${n(years)} years`}
+          formula={`Pack-years = (${n(cigs)} / 20) × ${n(years)} = ${numberText(packYears)}`}
           links={sources.smoking}
           copyText={`Pack-years: ${numberText(packYears)}`}
         />
@@ -1833,6 +1874,7 @@ function DaysSupplyTool() {
     const perDay = per === "day" ? n(dose) * n(freq) : (n(dose) * n(freq)) / 7;
     if (perDay <= 0) return null;
     const schedule = per === "week" ? ` | e.g. take on ${weeklySchedule(Math.round(n(freq)))}` : "";
+    const dosing = `${n(dose)} × ${n(freq)}/${per} = ${numberText(perDay, 2)}/day`;
     if (mode === "lasts") {
       if (!n(qty)) return null;
       const days = n(qty) / perDay;
@@ -1841,6 +1883,8 @@ function DaysSupplyTool() {
         label: "Lasts",
         value: `${numberText(days)} days`,
         sub: `${numberText(days / 7)} weeks | runs out ${fmtShort(runOut)} (${numberText(perDay, 2)}/day)${schedule}`,
+        input: `${n(qty)} dispensed, ${dosing}`,
+        formula: `Days = ${n(qty)} / ${numberText(perDay, 2)} = ${numberText(days)} days`,
         copy: `Supply lasts ${numberText(days)} days (runs out ${fmtShort(runOut)})`
       };
     }
@@ -1850,6 +1894,8 @@ function DaysSupplyTool() {
       label: "Quantity needed",
       value: `${needed.toLocaleString("en-GB")} tab/mL`,
       sub: `to cover ${n(weeks)} weeks at ${numberText(perDay, 2)}/day${schedule}`,
+      input: `${n(weeks)} weeks, ${dosing}`,
+      formula: `Qty = ${numberText(perDay, 2)}/day × ${n(weeks)} × 7 = ${needed.toLocaleString("en-GB")}`,
       copy: `Order ${needed} to cover ${n(weeks)} weeks`
     };
   }, [dose, freq, mode, per, qty, weeks]);
@@ -1888,6 +1934,8 @@ function DaysSupplyTool() {
           label={result.label}
           value={result.value}
           sub={result.sub}
+          input={result.input}
+          formula={result.formula}
           copyText={result.copy}
         />
       ) : null}
