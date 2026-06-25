@@ -933,44 +933,81 @@ function DurationTool() {
 }
 
 const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
-const MINUTES = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, "0")); // 5-min steps
+const MINUTES = Array.from({ length: 4 }, (_, i) => String(i * 15).padStart(2, "0")); // 15-min steps
 
-// Custom 24h time control: two small selects with English digits, so it never
-// renders the device locale's AM/PM text (e.g. 上午/下午) like a native <input type=time>.
+// Custom 24h time control: a single field that opens a one-tap pop-up with hour
+// and minute columns side by side (English digits, so it never renders the
+// device locale's AM/PM text like a native <input type=time>).
 function TimeField({ label, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
   const [h, m] = value ? value.split(":") : ["", ""];
-  const mSel = MINUTES.includes(m) ? m : "";
-  const setH = (hh) => onChange(hh === "" ? "" : `${hh}:${m || "00"}`);
+  const setH = (hh) => onChange(`${hh}:${m || "00"}`);
   const setM = (mm) => onChange(`${h || "00"}:${mm}`);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDoc = (event) => {
+      if (ref.current && !ref.current.contains(event.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  // Scroll the selected hour into view when the pop-up opens.
+  useEffect(() => {
+    if (!open || !ref.current) return;
+    const sel = ref.current.querySelector(".tp-col .tp-cell.sel");
+    if (sel) sel.scrollIntoView({ block: "center" });
+  }, [open]);
+
   return (
-    <label className="field-group">
+    <div className="field-group" ref={ref}>
       {label ? <span className="field-label">{label}</span> : null}
-      <span className="time-selects">
-        <select
-          className="field-input plain-select time-sel"
-          value={h}
-          onChange={(event) => setH(event.target.value)}
-          aria-label={`${label} hour`}
-        >
-          <option value="">--</option>
-          {HOURS.map((hh) => (
-            <option key={hh} value={hh}>{hh}</option>
-          ))}
-        </select>
-        <span className="time-colon">:</span>
-        <select
-          className="field-input plain-select time-sel"
-          value={mSel}
-          onChange={(event) => setM(event.target.value)}
-          aria-label={`${label} minute`}
-        >
-          <option value="">--</option>
-          {MINUTES.map((mm) => (
-            <option key={mm} value={mm}>{mm}</option>
-          ))}
-        </select>
-      </span>
-    </label>
+      <button
+        type="button"
+        className="field-input time-display"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        {value || <span className="muted">--:--</span>}
+      </button>
+      {open ? (
+        <div className="tp-pop" role="dialog" aria-label={`Choose ${label || "time"}`}>
+          <div className="tp-cols">
+            <div className="tp-col" aria-label="Hour">
+              {HOURS.map((hh) => (
+                <button
+                  type="button"
+                  key={hh}
+                  className={`tp-cell ${hh === h ? "sel" : ""}`}
+                  onClick={() => setH(hh)}
+                >
+                  {hh}
+                </button>
+              ))}
+            </div>
+            <span className="tp-sep">:</span>
+            <div className="tp-col tp-col-min" aria-label="Minute">
+              {MINUTES.map((mm) => (
+                <button
+                  type="button"
+                  key={mm}
+                  className={`tp-cell ${mm === m ? "sel" : ""}`}
+                  onClick={() => setM(mm)}
+                >
+                  {mm}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="tp-foot">
+            <button type="button" onClick={() => setOpen(false)}>Done</button>
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
