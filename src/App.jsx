@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -102,6 +102,111 @@ function numberText(value, decimals = 1) {
   });
 }
 
+function fmtDateTime(ts) {
+  const d = new Date(ts);
+  return `${fmtShort(d)} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+// ── HISTORY STORE ─────────────────────────────────────────
+// Records persist in localStorage. Each result auto-saves (debounced) as one
+// entry that updates live while you edit, so typing doesn't spam the list.
+const HISTORY_KEY = "pharmacalc-history";
+const HISTORY_MAX = 200;
+const HistoryContext = createContext(null);
+// Names the current tool so each result knows which category to file under in history.
+const CategoryContext = createContext(null);
+
+function HistoryProvider({ children }) {
+  const [records, setRecords] = useState(() => {
+    try {
+      const raw = localStorage.getItem(HISTORY_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(records.slice(0, HISTORY_MAX)));
+    } catch {
+      /* storage full or unavailable - ignore */
+    }
+  }, [records]);
+
+  const addOrUpdate = useCallback((id, entry) => {
+    setRecords((current) => {
+      const index = current.findIndex((row) => row.id === id);
+      const record = { ...entry, id, ts: Date.now() };
+      if (index === -1) return [record, ...current].slice(0, HISTORY_MAX);
+      const next = current.slice();
+      next[index] = { ...record, ts: current[index].ts }; // keep original time while editing
+      return next;
+    });
+  }, []);
+
+  const remove = useCallback((id) => setRecords((current) => current.filter((row) => row.id !== id)), []);
+  const clear = useCallback(() => setRecords([]), []);
+
+  const value = useMemo(() => ({ records, addOrUpdate, remove, clear }), [records, addOrUpdate, remove, clear]);
+  return <HistoryContext.Provider value={value}>{children}</HistoryContext.Provider>;
+}
+
+function useHistory() {
+  return useContext(HistoryContext);
+}
+
+// Auto-saves `entry` to history (debounced). Returns nothing. Pass null to skip.
+function useAutoRecord(entry) {
+  const ctx = useContext(HistoryContext);
+  const addOrUpdate = ctx ? ctx.addOrUpdate : null;
+  const idRef = useRef(null);
+  const sigRef = useRef(null);
+  const ready = !!(entry && entry.summary);
+  const sig = ready ? JSON.stringify([entry.category, entry.title, entry.value, entry.sub, entry.summary]) : null;
+  const entryRef = useRef(entry);
+  entryRef.current = entry;
+
+  useEffect(() => {
+    if (!ready || !addOrUpdate || sig === sigRef.current) return undefined;
+    const timer = setTimeout(() => {
+      if (!idRef.current) idRef.current = `h_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+      sigRef.current = sig;
+      addOrUpdate(idRef.current, entryRef.current);
+    }, 1100);
+    return () => clearTimeout(timer);
+  }, [sig, ready, addOrUpdate]);
+}
+
+// Detects a mostly-horizontal swipe and calls onLeft / onRight. Ignores swipes
+// that start on interactive or horizontally-scrolling elements.
+function useSwipe(onLeft, onRight) {
+  const start = useRef(null);
+  const onTouchStart = (event) => {
+    if (event.touches.length !== 1) {
+      start.current = null;
+      return;
+    }
+    if (event.target.closest("input, select, textarea, .calendar-strip, .dp-pop, .time-selects, .quick-add")) {
+      start.current = null;
+      return;
+    }
+    const touch = event.touches[0];
+    start.current = { x: touch.clientX, y: touch.clientY };
+  };
+  const onTouchEnd = (event) => {
+    if (!start.current) return;
+    const touch = event.changedTouches[0];
+    const dx = touch.clientX - start.current.x;
+    const dy = touch.clientY - start.current.y;
+    start.current = null;
+    if (Math.abs(dx) < 64 || Math.abs(dx) < Math.abs(dy) * 1.8) return; // not a clear horizontal swipe
+    if (dx < 0) onLeft();
+    else onRight();
+  };
+  return { onTouchStart, onTouchEnd };
+}
+
 function ClipboardIcon() {
   return (
     <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -115,6 +220,23 @@ function CheckIcon() {
   return (
     <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M20 6 9 17l-5-5" />
+    </svg>
+  );
+}
+
+function ClockIcon() {
+  return (
+    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6" />
     </svg>
   );
 }
@@ -339,7 +461,15 @@ function SourceLinks({ links }) {
   );
 }
 
-function ResultBlock({ badge, tone = "info", label, value, sub, links = [], copyText, children }) {
+function ResultBlock({ category, badge, tone = "info", label, value, sub, links = [], copyText, children }) {
+  const ctxCategory = useContext(CategoryContext);
+  const cat = category || ctxCategory;
+  const valueText = value == null ? "" : String(value);
+  const subText = typeof sub === "string" ? sub : "";
+  const summary = copyText || (valueText ? `${label || badge || ""}: ${valueText}`.trim() : "");
+  useAutoRecord(
+    cat ? { category: cat, title: label || badge || cat, value: valueText, sub: subText, summary } : null
+  );
   if (!value && !children) return null;
   return (
     <section className="result-block" aria-live="polite">
@@ -381,19 +511,88 @@ function Disclaimer({ links = sources.bnf }) {
   );
 }
 
+function HistoryPanel({ onClose }) {
+  const { records, remove, clear } = useHistory();
+  const sorted = useMemo(() => [...records].sort((a, b) => b.ts - a.ts), [records]);
+
+  return (
+    <div className="history-overlay" role="dialog" aria-label="History">
+      <div className="history-head">
+        <span className="history-title">History</span>
+        <div className="history-head-actions">
+          {sorted.length ? (
+            <button className="history-clear" type="button" onClick={clear}>
+              Clear all
+            </button>
+          ) : null}
+          <button className="history-close" type="button" onClick={onClose} aria-label="Close history">
+            ✕
+          </button>
+        </div>
+      </div>
+      {sorted.length === 0 ? (
+        <div className="history-empty">
+          <ClockIcon />
+          <p>No saved results yet.</p>
+          <p className="history-empty-sub">Results are added here automatically as you use the calculators.</p>
+        </div>
+      ) : (
+        <ul className="history-list">
+          {sorted.map((rec) => (
+            <li className="history-row" key={rec.id}>
+              <div className="history-row-main">
+                <div className="history-row-top">
+                  <span className="history-cat">{rec.category}</span>
+                  <span className="history-time">{fmtDateTime(rec.ts)}</span>
+                </div>
+                <div className="history-summary">{rec.summary}</div>
+                {rec.sub ? <div className="history-sub">{rec.sub}</div> : null}
+              </div>
+              <button className="history-del" type="button" aria-label="Delete record" onClick={() => remove(rec.id)}>
+                <TrashIcon />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function App() {
+  return (
+    <HistoryProvider>
+      <AppShell />
+    </HistoryProvider>
+  );
+}
+
+function AppShell() {
   const tabs = ["BMI", "Dates", "Fertility", "Clinical", "Patient", "Dosing"];
   const [activeTab, setActiveTab] = useState("BMI");
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const { records } = useHistory();
 
   // On section switch, jump back to the top of the page.
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
   }, [activeTab]);
 
+  const goTab = (direction) => {
+    const index = tabs.indexOf(activeTab);
+    const next = Math.min(tabs.length - 1, Math.max(0, index + direction));
+    if (next !== index) setActiveTab(tabs[next]);
+  };
+  const swipe = useSwipe(() => goTab(1), () => goTab(-1));
+
   return (
     <div className="app-shell">
       <header className="header">
         <span className="logo">PharmaCalc</span>
+        <button className="history-btn" type="button" onClick={() => setHistoryOpen(true)} aria-label="History">
+          <ClockIcon />
+          {records.length ? <span className="history-count">{records.length}</span> : null}
+        </button>
       </header>
       <nav className="tab-bar" aria-label="Main tools">
         {tabs.map((tab) => (
@@ -408,7 +607,7 @@ function App() {
         ))}
       </nav>
       {/* Each tab is mounted fresh on switch, so its inputs reset automatically. */}
-      <main className="content">
+      <main className="content" onTouchStart={swipe.onTouchStart} onTouchEnd={swipe.onTouchEnd}>
         {activeTab === "BMI" ? <BmiTab /> : null}
         {activeTab === "Dates" ? <DatesTab /> : null}
         {activeTab === "Fertility" ? <FertilityTab /> : null}
@@ -416,6 +615,7 @@ function App() {
         {activeTab === "Patient" ? <PatientTab /> : null}
         {activeTab === "Dosing" ? <DosingTab /> : null}
       </main>
+      {historyOpen ? <HistoryPanel onClose={() => setHistoryOpen(false)} /> : null}
     </div>
   );
 }
@@ -455,7 +655,7 @@ function BmiTab() {
   }, [ethnic, feet, heightCm, heightMode, inches, pounds, stone, weightKg, weightMode]);
 
   return (
-    <>
+    <CategoryContext.Provider value="BMI">
       <section className="card">
         <div className="card-title">BMI Calculator</div>
         <div className="label-with-control">
@@ -533,7 +733,7 @@ function BmiTab() {
         </button>
       </section>
       <Disclaimer links={sources.bmi} />
-    </>
+    </CategoryContext.Provider>
   );
 }
 
@@ -552,11 +752,13 @@ function DatesTab() {
     <>
       <section className="card">
         <SubTabs items={["Rx Validity", "Mixed FP10", "Emergency Supply", "Age", "Duration"]} active={sub} onChange={setSub} />
-        {sub === "Rx Validity" ? <RxValidity /> : null}
-        {sub === "Mixed FP10" ? <MixedFp10 /> : null}
-        {sub === "Emergency Supply" ? <EmergencySupply /> : null}
-        {sub === "Age" ? <AgeTool /> : null}
-        {sub === "Duration" ? <DurationTool /> : null}
+        <CategoryContext.Provider value={sub}>
+          {sub === "Rx Validity" ? <RxValidity /> : null}
+          {sub === "Mixed FP10" ? <MixedFp10 /> : null}
+          {sub === "Emergency Supply" ? <EmergencySupply /> : null}
+          {sub === "Age" ? <AgeTool /> : null}
+          {sub === "Duration" ? <DurationTool /> : null}
+        </CategoryContext.Provider>
       </section>
       <Disclaimer links={sources.rx} />
     </>
@@ -965,7 +1167,9 @@ function FertilityTab() {
     <>
       <section className="card">
         <SubTabs items={["Trying to Conceive", "Cycle Tracker"]} active={sub} onChange={setSub} />
-        {sub === "Trying to Conceive" ? <FertilityTool showPlanning /> : <FertilityTool />}
+        <CategoryContext.Provider value={sub === "Trying to Conceive" ? "Fertility - TTC" : "Cycle Tracker"}>
+          {sub === "Trying to Conceive" ? <FertilityTool showPlanning /> : <FertilityTool />}
+        </CategoryContext.Provider>
       </section>
       <Disclaimer links={sources.fertility} />
     </>
@@ -1050,10 +1254,12 @@ function ClinicalTab() {
   return (
     <section className="card">
       <SubTabs items={["CrCl", "BSA", "Paediatric", "Converter"]} active={sub} onChange={setSub} />
-      {sub === "CrCl" ? <CrClTool /> : null}
-      {sub === "BSA" ? <BsaTool /> : null}
-      {sub === "Paediatric" ? <PaediatricTool /> : null}
-      {sub === "Converter" ? <ConverterTool /> : null}
+      <CategoryContext.Provider value={sub}>
+        {sub === "CrCl" ? <CrClTool /> : null}
+        {sub === "BSA" ? <BsaTool /> : null}
+        {sub === "Paediatric" ? <PaediatricTool /> : null}
+        {sub === "Converter" ? <ConverterTool /> : null}
+      </CategoryContext.Provider>
     </section>
   );
 }
@@ -1276,9 +1482,11 @@ function PatientTab() {
   return (
     <section className="card">
       <SubTabs items={["Due Date", "Alcohol", "Smoking"]} active={sub} onChange={setSub} />
-      {sub === "Due Date" ? <DueDateTool /> : null}
-      {sub === "Alcohol" ? <AlcoholTool /> : null}
-      {sub === "Smoking" ? <SmokingTool /> : null}
+      <CategoryContext.Provider value={sub}>
+        {sub === "Due Date" ? <DueDateTool /> : null}
+        {sub === "Alcohol" ? <AlcoholTool /> : null}
+        {sub === "Smoking" ? <SmokingTool /> : null}
+      </CategoryContext.Provider>
     </section>
   );
 }
@@ -1451,9 +1659,11 @@ function DosingTab() {
     <>
       <section className="card">
         <SubTabs items={["Dose Timing", "Days' Supply", "Med Sync"]} active={sub} onChange={setSub} />
-        {sub === "Dose Timing" ? <DoseTimingTool /> : null}
-        {sub === "Days' Supply" ? <DaysSupplyTool /> : null}
-        {sub === "Med Sync" ? <MedSyncTool /> : null}
+        <CategoryContext.Provider value={sub}>
+          {sub === "Dose Timing" ? <DoseTimingTool /> : null}
+          {sub === "Days' Supply" ? <DaysSupplyTool /> : null}
+          {sub === "Med Sync" ? <MedSyncTool /> : null}
+        </CategoryContext.Provider>
       </section>
       <Disclaimer links={sources.bnf} />
     </>
