@@ -936,6 +936,7 @@ function DurationTool() {
               label="Length of period"
               value={between.main}
               sub={between.sub}
+              input={`${fmtShort(fromISO(start))}${startT ? ` ${startT}` : ""} → ${fmtShort(fromISO(end))}${endT ? ` ${endT}` : ""}`}
               copyText={`Duration: ${between.main}`}
             />
           ) : null}
@@ -970,6 +971,8 @@ function DurationTool() {
               tone="info"
               label="Resulting date"
               value={fmtDate(shifted)}
+              input={`${fmtShort(fromISO(base))} ${direction} ${n(amount)} ${unit}`}
+              formula={`${fmtShort(fromISO(base))} ${direction === "before" ? "−" : "+"} ${n(amount)} ${unit} = ${fmtShort(shifted)}`}
               copyText={`${amount} ${unit} ${direction}: ${fmtDate(shifted)}`}
             />
           ) : null}
@@ -1110,6 +1113,8 @@ function RxValidity() {
               ? `${Math.abs(result.days)} days overdue`
               : `${result.days} days remaining${schedule !== "6m" ? " - CD 28-day rule applies" : ""}`
           }
+          input={`Appropriate ${fmtShort(fromISO(rxDate))}, ${schedule === "6m" ? "Standard / Sched 5" : "CD Sched 2/3/4"}, dispensed ${fmtShort(fromISO(dispDate))}`}
+          formula={`Expiry = ${fmtShort(fromISO(rxDate))} + ${schedule === "6m" ? "6 months" : "28 days"} = ${fmtShort(result.expiry)}`}
           links={sources.rx}
           copyText={`Rx expires: ${fmtDate(result.expiry)} (${result.days < 0 ? `${Math.abs(result.days)} days overdue` : `${result.days} days remaining`})`}
         />
@@ -1203,6 +1208,8 @@ function EmergencySupply() {
   const [criteria, setCriteria] = useState({ previous: false, need: false, unavailable: false });
   const [type, setType] = useState("pom");
   const allMet = criteria.previous && criteria.need && criteria.unavailable;
+  const typeLabel = { pom: "Standard POM", cd45: "Sched 4/5 CD", cd123: "Sched 1/2/3 CD", inhaler: "Inhaler/cream" }[type];
+  const inputStr = `${[criteria.previous && "previously prescribed", criteria.need && "immediate need", criteria.unavailable && "no timely Rx"].filter(Boolean).join(", ") || "no criteria met"}; ${typeLabel}`;
   const result = useMemo(() => {
     if (type === "cd123") return { tone: "error", badge: "CANNOT SUPPLY", value: "Schedule 1/2/3 CD", sub: "Emergency supply not permitted in law. Exception may apply for phenobarbital for epilepsy." };
     if (!allMet) return { tone: "error", badge: "CRITERIA NOT MET", value: "Do not supply yet", sub: "All three legal criteria must be satisfied before supply." };
@@ -1245,6 +1252,7 @@ function EmergencySupply() {
         label={result.badge === "MAY SUPPLY" ? "Maximum supply" : "Decision"}
         value={result.value}
         sub={result.sub}
+        input={inputStr}
         links={sources.emergency}
         copyText={`Emergency supply: ${result.badge} - ${result.value}`}
       />
@@ -1301,6 +1309,8 @@ function FertilityTool({ showPlanning = false }) {
             label="Estimated fertile window"
             value={`${fmtDate(result.start)} to ${fmtDate(result.ovulation)}`}
             sub={`Estimated ovulation: ${fmtDate(result.ovulation)} | Next period: ${fmtDate(result.next)}`}
+            input={`LMP ${fmtShort(fromISO(lmp))}, ${n(cycle) || 28}-day cycle`}
+            formula={`Ovulation = LMP + ${n(cycle) || 28} − 14 = ${fmtShort(result.ovulation)}; window = ovulation − 5 days`}
             links={sources.fertility}
             copyText={`Fertile window: ${fmtDate(result.start)} to ${fmtDate(result.ovulation)}`}
           />
@@ -1535,6 +1545,14 @@ function ConverterTool() {
   }, [isVit, mode, mw, value]);
 
   const labels = { mgmcg: ["Value in mg", "mg"], wvmg: ["% w/v", "%"], mgmmol: ["mg/mL", "mg/mL"] };
+  const convFormula =
+    !isVit && result && result !== "Enter molecular weight"
+      ? mode === "mgmcg"
+        ? `${n(value)} mg × 1000 = ${result}`
+        : mode === "wvmg"
+          ? `${n(value)}% × 10 = ${result}`
+          : `(${n(value)} × 1000) / ${n(mw)} = ${result}`
+      : "";
   const resetAll = () => { setValue(""); setMw(""); setIu(""); setMass(""); };
   const onIu = (next) => { setIu(next); setMass(next === "" ? "" : String(+(n(next) * vit.perIU).toFixed(3))); };
   const onMass = (next) => { setMass(next); setIu(next === "" ? "" : String(+(n(next) / vit.perIU).toFixed(2))); };
@@ -1567,7 +1585,7 @@ function ConverterTool() {
         <>
           <NumberField label={labels[mode][0]} value={value} onChange={setValue} unit={labels[mode][1]} min={0} />
           {mode === "mgmmol" ? <NumberField label="Molecular weight" value={mw} onChange={setMw} unit="g/mol" min={0} /> : null}
-          {result ? <ResultBlock badge="RESULT" tone="info" label="Converted value" value={result} input={`${n(value)} ${labels[mode][1]}${mode === "mgmmol" ? `, MW ${n(mw)}` : ""}`} copyText={`Converted value: ${result}`} /> : null}
+          {result ? <ResultBlock badge="RESULT" tone="info" label="Converted value" value={result} input={`${n(value)} ${labels[mode][1]}${mode === "mgmmol" ? `, MW ${n(mw)}` : ""}`} formula={convFormula} copyText={`Converted value: ${result}`} /> : null}
         </>
       )}
       <button className="clear-btn" type="button" onClick={resetAll}>
@@ -1841,7 +1859,12 @@ function DoseTimingTool() {
         </div>
       ) : null}
       {result ? (
-        <ResultBlock badge="SUGGESTED TIMES" tone="info" copyText={`Suggested dose times: ${result.times.join(", ")}`}>
+        <ResultBlock
+          badge="SUGGESTED TIMES"
+          tone="info"
+          input={`${Math.round(n(doses))}/day, awake ${wake}-${sleep}${empty ? `, empty stomach (meals ${breakfast}/${lunch}/${dinner})` : ""}`}
+          copyText={`Suggested dose times: ${result.times.join(", ")}`}
+        >
           <div className="time-chips">
             {result.times.map((time, index) => (
               <span className="time-chip" key={`${time}-${index}`}>{time}</span>
@@ -1974,6 +1997,24 @@ function MedSyncTool() {
     });
     return { lines, common: fmtShort(addDays(new Date(), Math.floor(target))), target };
   }, [customDays, rows, targetMode]);
+
+  const category = useContext(CategoryContext);
+  useAutoRecord(
+    plan
+      ? {
+          category: category || "Med Sync",
+          title: "Med Sync",
+          value: `Sync to ${plan.target.toFixed(0)} days`,
+          sub: plan.lines.map((line) => `${line.name}: ${line.detail}`).join(" • "),
+          input: rows
+            .filter((row) => n(row.use) > 0)
+            .map((row) => `${row.name || "(unnamed)"} ${n(row.use)}/day, stock ${n(row.stock)}`)
+            .join("; "),
+          formula: "",
+          summary: `Med Sync: align to ${plan.target.toFixed(0)} days, collect together ~${plan.common}`
+        }
+      : null
+  );
 
   return (
     <>
