@@ -922,6 +922,23 @@ a:hover {
   font-weight: 600;
 }
 
+.dp-selects {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  gap: 6px;
+}
+
+.dp-sel {
+  min-height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 16px; /* >=16px avoids iOS auto-zoom */
+  padding: 0 6px;
+}
+
 .dp-nav {
   width: 28px;
   height: 28px;

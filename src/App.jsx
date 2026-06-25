@@ -343,13 +343,38 @@ function CalendarPopover({ view, setView, value, onPick }) {
   for (let i = 0; i < firstDow; i += 1) cells.push(null);
   for (let d = 1; d <= daysInMonth; d += 1) cells.push(new Date(year, month, d));
 
+  const nowYear = new Date().getFullYear();
+  const years = [];
+  for (let y = nowYear + 10; y >= nowYear - 120; y -= 1) years.push(y); // newest first
+
   return (
     <div className="dp-pop" role="dialog" aria-label="Choose date">
       <div className="dp-head">
         <button type="button" className="dp-nav" aria-label="Previous month" onClick={() => setView(new Date(year, month - 1, 1))}>
           ‹
         </button>
-        <span className="dp-title">{MONTHS[month]} {year}</span>
+        <div className="dp-selects">
+          <select
+            className="dp-sel"
+            aria-label="Month"
+            value={month}
+            onChange={(event) => setView(new Date(year, Number(event.target.value), 1))}
+          >
+            {MONTHS.map((name, index) => (
+              <option key={name} value={index}>{name}</option>
+            ))}
+          </select>
+          <select
+            className="dp-sel"
+            aria-label="Year"
+            value={year}
+            onChange={(event) => setView(new Date(Number(event.target.value), month, 1))}
+          >
+            {years.map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+        </div>
         <button type="button" className="dp-nav" aria-label="Next month" onClick={() => setView(new Date(year, month + 1, 1))}>
           ›
         </button>
