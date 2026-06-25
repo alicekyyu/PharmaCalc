@@ -702,6 +702,37 @@ function BmiTab() {
     return { bmi: bmi.toFixed(1), category, tone, inputStr, formula };
   }, [ethnic, feet, heightCm, heightMode, inchTotal, inches, lb, pounds, stone, weightKg, weightMode]);
 
+  // Switching units converts the current value instead of clearing it.
+  const round1 = (value) => String(+value.toFixed(1));
+  const changeHeightMode = (mode) => {
+    const cm = heightMode === "cm" ? n(heightCm) : heightMode === "in" ? n(inchTotal) * 2.54 : (n(feet) * 12 + n(inches)) * 2.54;
+    if (cm > 0) {
+      if (mode === "cm") setHeightCm(round1(cm));
+      else if (mode === "in") setInchTotal(round1(cm / 2.54));
+      else {
+        const totalIn = cm / 2.54;
+        const ft = Math.floor(totalIn / 12);
+        setFeet(String(ft));
+        setInches(round1(totalIn - ft * 12));
+      }
+    }
+    setHeightMode(mode);
+  };
+  const changeWeightMode = (mode) => {
+    const kg = weightMode === "kg" ? n(weightKg) : weightMode === "lb" ? n(lb) * 0.453592 : (n(stone) * 14 + n(pounds)) * 0.453592;
+    if (kg > 0) {
+      if (mode === "kg") setWeightKg(round1(kg));
+      else if (mode === "lb") setLb(round1(kg / 0.453592));
+      else {
+        const totalLb = kg / 0.453592;
+        const st = Math.floor(totalLb / 14);
+        setStone(String(st));
+        setPounds(round1(totalLb - st * 14));
+      }
+    }
+    setWeightMode(mode);
+  };
+
   return (
     <CategoryContext.Provider value="BMI">
       <section className="card">
@@ -711,7 +742,7 @@ function BmiTab() {
           <Segmented
             ariaLabel="Height unit"
             value={heightMode}
-            onChange={setHeightMode}
+            onChange={changeHeightMode}
             options={[
               { value: "cm", label: "cm" },
               { value: "ftin", label: "ft / in" },
@@ -735,7 +766,7 @@ function BmiTab() {
           <Segmented
             ariaLabel="Weight unit"
             value={weightMode}
-            onChange={setWeightMode}
+            onChange={changeWeightMode}
             options={[
               { value: "kg", label: "kg" },
               { value: "lb", label: "lb" },
@@ -1280,7 +1311,7 @@ function FertilityTab() {
 
 function FertilityTool({ showPlanning = false }) {
   const [lmp, setLmp] = useState(todayISO());
-  const [cycle, setCycle] = useState("");
+  const [cycle, setCycle] = useState("28");
   const result = useMemo(() => {
     const lmpDate = fromISO(lmp);
     const cycleDays = n(cycle) || 28;
@@ -1323,7 +1354,7 @@ function FertilityTool({ showPlanning = false }) {
           daily from before conception until 12 weeks.
         </Notice>
       ) : null}
-      <button className="clear-btn" type="button" onClick={() => { setLmp(todayISO()); setCycle(""); }}>
+      <button className="clear-btn" type="button" onClick={() => { setLmp(todayISO()); setCycle("28"); }}>
         Clear
       </button>
     </>
@@ -1334,8 +1365,18 @@ function CalendarStrip({ result }) {
   const today = toISO(new Date());
   const startIso = toISO(result.start);
   const ovIso = toISO(result.ovulation);
+  const containerRef = useRef(null);
+  const startRef = useRef(null);
+
+  // Scroll the fertile-window start into view so it is visible without scrolling.
+  useEffect(() => {
+    if (containerRef.current && startRef.current) {
+      containerRef.current.scrollLeft = Math.max(0, startRef.current.offsetLeft - 40);
+    }
+  }, [startIso]);
+
   return (
-    <div className="calendar-strip" aria-label="Cycle calendar">
+    <div className="calendar-strip" aria-label="Cycle calendar" ref={containerRef}>
       {result.days.map((date) => {
         const iso = toISO(date);
         const fertile = iso >= startIso && iso <= ovIso;
@@ -1343,6 +1384,7 @@ function CalendarStrip({ result }) {
           <span
             className={`cal-day ${fertile ? "fertile" : ""} ${iso === ovIso ? "ovulation" : ""} ${iso === today ? "today" : ""}`}
             key={iso}
+            ref={iso === startIso ? startRef : null}
           >
             <span className="day-name">{DAYS[date.getDay()].slice(0, 1)}</span>
             <span className="day-num">{date.getDate()}</span>
