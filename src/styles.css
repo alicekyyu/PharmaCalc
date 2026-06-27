@@ -1038,6 +1038,57 @@ a:hover {
   font-size: 11px;
 }
 
+/* ── SHARED PATIENT BAR ─────────────────────────────────── */
+.shared-bar {
+  position: sticky;
+  top: 86px; /* below header (44) + tab bar (42) */
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 16px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.shared-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.shared-chip {
+  color: var(--text-secondary);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  padding: 3px 7px;
+  white-space: nowrap;
+}
+
+.shared-clear {
+  flex: 0 0 auto;
+  min-height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--status-warn);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 10px;
+}
+
+.shared-hint {
+  margin: -6px 0 10px;
+  color: var(--accent-cyan);
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
 /* ── HISTORY PANEL ──────────────────────────────────────── */
 .history-overlay {
   position: fixed;

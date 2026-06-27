@@ -178,6 +178,91 @@ function useAutoRecord(entry) {
   }, [sig, ready, addOrUpdate]);
 }
 
+// ── SHARED PATIENT INPUTS ─────────────────────────────────
+// Weight/height/age/sex carry across tools. Stored canonical (kg, cm) plus the
+// unit they were entered in, so other tools show the original for cross-check.
+// `nonce` only changes on Clear, and is used as a remount key to reset fields.
+const SHARED_KEY = "pharmacalc-patient";
+const KG_PER_LB = 0.453592;
+const CM_PER_IN = 2.54;
+const SharedContext = createContext(null);
+
+const r1 = (value) => Math.round(value * 10) / 10;
+const r1s = (value) => String(r1(value));
+
+function fmtWeight(kg, unit) {
+  if (kg == null) return "";
+  if (unit === "lb") return `${r1(kg / KG_PER_LB)} lb`;
+  if (unit === "stlb") {
+    const total = kg / KG_PER_LB;
+    const st = Math.floor(total / 14);
+    return `${st}st ${r1(total - st * 14)}lb`;
+  }
+  return `${r1(kg)} kg`;
+}
+
+function fmtHeight(cm, unit) {
+  if (cm == null) return "";
+  if (unit === "in") return `${r1(cm / CM_PER_IN)} in`;
+  if (unit === "ftin") {
+    const total = cm / CM_PER_IN;
+    const ft = Math.floor(total / 12);
+    return `${ft}ft ${r1(total - ft * 12)}in`;
+  }
+  return `${r1(cm)} cm`;
+}
+
+// Field strings for a given canonical value + display unit (for mount init).
+function weightFields(kg, mode) {
+  if (kg == null) return { weightKg: "", lb: "", stone: "", pounds: "" };
+  if (mode === "lb") return { weightKg: "", lb: r1s(kg / KG_PER_LB), stone: "", pounds: "" };
+  if (mode === "stlb") {
+    const total = kg / KG_PER_LB;
+    const st = Math.floor(total / 14);
+    return { weightKg: "", lb: "", stone: String(st), pounds: r1s(total - st * 14) };
+  }
+  return { weightKg: r1s(kg), lb: "", stone: "", pounds: "" };
+}
+
+function heightFields(cm, mode) {
+  if (cm == null) return { heightCm: "", feet: "", inches: "", inchTotal: "" };
+  if (mode === "in") return { heightCm: "", feet: "", inches: "", inchTotal: r1s(cm / CM_PER_IN) };
+  if (mode === "ftin") {
+    const total = cm / CM_PER_IN;
+    const ft = Math.floor(total / 12);
+    return { heightCm: "", feet: String(ft), inches: r1s(total - ft * 12), inchTotal: "" };
+  }
+  return { heightCm: r1s(cm), feet: "", inches: "", inchTotal: "" };
+}
+
+function SharedProvider({ children }) {
+  const [patient, setPatient] = useState(() => {
+    try {
+      const raw = localStorage.getItem(SHARED_KEY);
+      return raw ? JSON.parse(raw) : { nonce: 0 };
+    } catch {
+      return { nonce: 0 };
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SHARED_KEY, JSON.stringify(patient));
+    } catch {
+      /* ignore */
+    }
+  }, [patient]);
+
+  const setField = useCallback((updates) => setPatient((current) => ({ ...current, ...updates })), []);
+  const clearAll = useCallback(() => setPatient((current) => ({ nonce: (current.nonce || 0) + 1 })), []);
+  const value = useMemo(() => ({ patient, setField, clearAll }), [patient, setField, clearAll]);
+  return <SharedContext.Provider value={value}>{children}</SharedContext.Provider>;
+}
+
+function useShared() {
+  return useContext(SharedContext);
+}
+
 // Detects a mostly-horizontal swipe and calls onLeft / onRight. Ignores swipes
 // that start on interactive or horizontally-scrolling elements.
 function useSwipe(onLeft, onRight) {
@@ -591,8 +676,30 @@ function HistoryPanel({ onClose }) {
 function App() {
   return (
     <HistoryProvider>
-      <AppShell />
+      <SharedProvider>
+        <AppShell />
+      </SharedProvider>
     </HistoryProvider>
+  );
+}
+
+function SharedBar() {
+  const { patient, clearAll } = useShared();
+  const chips = [];
+  if (patient.weightKg != null) chips.push(`Wt ${fmtWeight(patient.weightKg, patient.weightUnit)}`);
+  if (patient.heightCm != null) chips.push(`Ht ${fmtHeight(patient.heightCm, patient.heightUnit)}`);
+  if (patient.age) chips.push(`Age ${patient.age}`);
+  if (patient.sex) chips.push(patient.sex === "M" ? "Male" : "Female");
+  if (!chips.length) return null;
+  return (
+    <div className="shared-bar">
+      <div className="shared-chips">
+        {chips.map((chip) => (
+          <span className="shared-chip" key={chip}>{chip}</span>
+        ))}
+      </div>
+      <button className="shared-clear" type="button" onClick={clearAll}>Clear inputs</button>
+    </div>
   );
 }
 
@@ -601,6 +708,8 @@ function AppShell() {
   const [activeTab, setActiveTab] = useState("BMI");
   const [historyOpen, setHistoryOpen] = useState(false);
   const { records } = useHistory();
+  const { patient } = useShared();
+  const nonce = patient.nonce || 0;
 
   // On section switch, jump back to the top of the page.
   useEffect(() => {
@@ -635,12 +744,14 @@ function AppShell() {
           </button>
         ))}
       </nav>
-      {/* Each tab is mounted fresh on switch, so its inputs reset automatically. */}
+      <SharedBar />
+      {/* Each tab is mounted fresh on switch, so its inputs reset automatically.
+          BMI and Clinical also remount on Clear (nonce key) to drop shared values. */}
       <main className="content" onTouchStart={swipe.onTouchStart} onTouchEnd={swipe.onTouchEnd}>
-        {activeTab === "BMI" ? <BmiTab /> : null}
+        {activeTab === "BMI" ? <BmiTab key={`bmi-${nonce}`} /> : null}
         {activeTab === "Dates" ? <DatesTab /> : null}
         {activeTab === "Fertility" ? <FertilityTab /> : null}
-        {activeTab === "Clinical" ? <ClinicalTab /> : null}
+        {activeTab === "Clinical" ? <ClinicalTab key={`clin-${nonce}`} /> : null}
         {activeTab === "Patient" ? <PatientTab /> : null}
         {activeTab === "Dosing" ? <DosingTab /> : null}
       </main>
@@ -650,17 +761,23 @@ function AppShell() {
 }
 
 function BmiTab() {
-  const [heightMode, setHeightMode] = useState("ftin"); // ft/in is the common UK input
-  const [weightMode, setWeightMode] = useState("kg");
+  const { patient, setField } = useShared();
+  const initHMode = patient.heightUnit || "ftin"; // ft/in is the common UK input
+  const initWMode = patient.weightUnit || "kg";
+  const ih = heightFields(patient.heightCm ?? null, initHMode);
+  const iw = weightFields(patient.weightKg ?? null, initWMode);
+
+  const [heightMode, setHeightMode] = useState(initHMode);
+  const [weightMode, setWeightMode] = useState(initWMode);
   const [ethnic, setEthnic] = useState(false);
-  const [heightCm, setHeightCm] = useState("");
-  const [feet, setFeet] = useState("");
-  const [inches, setInches] = useState("");
-  const [inchTotal, setInchTotal] = useState("");
-  const [weightKg, setWeightKg] = useState("");
-  const [stone, setStone] = useState("");
-  const [pounds, setPounds] = useState("");
-  const [lb, setLb] = useState("");
+  const [heightCm, setHeightCm] = useState(ih.heightCm);
+  const [feet, setFeet] = useState(ih.feet);
+  const [inches, setInches] = useState(ih.inches);
+  const [inchTotal, setInchTotal] = useState(ih.inchTotal);
+  const [weightKg, setWeightKg] = useState(iw.weightKg);
+  const [stone, setStone] = useState(iw.stone);
+  const [pounds, setPounds] = useState(iw.pounds);
+  const [lb, setLb] = useState(iw.lb);
 
   const result = useMemo(() => {
     const hM =
@@ -702,35 +819,38 @@ function BmiTab() {
     return { bmi: bmi.toFixed(1), category, tone, inputStr, formula };
   }, [ethnic, feet, heightCm, heightMode, inchTotal, inches, lb, pounds, stone, weightKg, weightMode]);
 
+  // Push canonical weight/height to the shared store as the user edits.
+  const pushWeight = (mode, fields) => {
+    const kg = mode === "kg" ? n(fields.weightKg) : mode === "lb" ? n(fields.lb) * KG_PER_LB : (n(fields.stone) * 14 + n(fields.pounds)) * KG_PER_LB;
+    setField({ weightKg: kg > 0 ? kg : null, weightUnit: kg > 0 ? mode : undefined });
+  };
+  const pushHeight = (mode, fields) => {
+    const cm = mode === "cm" ? n(fields.heightCm) : mode === "in" ? n(fields.inchTotal) * CM_PER_IN : (n(fields.feet) * 12 + n(fields.inches)) * CM_PER_IN;
+    setField({ heightCm: cm > 0 ? cm : null, heightUnit: cm > 0 ? mode : undefined });
+  };
+  const onWeightKg = (v) => { setWeightKg(v); pushWeight("kg", { weightKg: v }); };
+  const onLb = (v) => { setLb(v); pushWeight("lb", { lb: v }); };
+  const onStone = (v) => { setStone(v); pushWeight("stlb", { stone: v, pounds }); };
+  const onPounds = (v) => { setPounds(v); pushWeight("stlb", { stone, pounds: v }); };
+  const onHeightCm = (v) => { setHeightCm(v); pushHeight("cm", { heightCm: v }); };
+  const onInchTotal = (v) => { setInchTotal(v); pushHeight("in", { inchTotal: v }); };
+  const onFeet = (v) => { setFeet(v); pushHeight("ftin", { feet: v, inches }); };
+  const onInches = (v) => { setInches(v); pushHeight("ftin", { feet, inches: v }); };
+
   // Switching units converts the current value instead of clearing it.
-  const round1 = (value) => String(+value.toFixed(1));
   const changeHeightMode = (mode) => {
-    const cm = heightMode === "cm" ? n(heightCm) : heightMode === "in" ? n(inchTotal) * 2.54 : (n(feet) * 12 + n(inches)) * 2.54;
-    if (cm > 0) {
-      if (mode === "cm") setHeightCm(round1(cm));
-      else if (mode === "in") setInchTotal(round1(cm / 2.54));
-      else {
-        const totalIn = cm / 2.54;
-        const ft = Math.floor(totalIn / 12);
-        setFeet(String(ft));
-        setInches(round1(totalIn - ft * 12));
-      }
-    }
+    const cm = heightMode === "cm" ? n(heightCm) : heightMode === "in" ? n(inchTotal) * CM_PER_IN : (n(feet) * 12 + n(inches)) * CM_PER_IN;
+    const f = heightFields(cm > 0 ? cm : null, mode);
+    setHeightCm(f.heightCm); setInchTotal(f.inchTotal); setFeet(f.feet); setInches(f.inches);
     setHeightMode(mode);
+    if (cm > 0) setField({ heightUnit: mode });
   };
   const changeWeightMode = (mode) => {
-    const kg = weightMode === "kg" ? n(weightKg) : weightMode === "lb" ? n(lb) * 0.453592 : (n(stone) * 14 + n(pounds)) * 0.453592;
-    if (kg > 0) {
-      if (mode === "kg") setWeightKg(round1(kg));
-      else if (mode === "lb") setLb(round1(kg / 0.453592));
-      else {
-        const totalLb = kg / 0.453592;
-        const st = Math.floor(totalLb / 14);
-        setStone(String(st));
-        setPounds(round1(totalLb - st * 14));
-      }
-    }
+    const kg = weightMode === "kg" ? n(weightKg) : weightMode === "lb" ? n(lb) * KG_PER_LB : (n(stone) * 14 + n(pounds)) * KG_PER_LB;
+    const f = weightFields(kg > 0 ? kg : null, mode);
+    setWeightKg(f.weightKg); setLb(f.lb); setStone(f.stone); setPounds(f.pounds);
     setWeightMode(mode);
+    if (kg > 0) setField({ weightUnit: mode });
   };
 
   return (
@@ -751,13 +871,13 @@ function BmiTab() {
           />
         </div>
         {heightMode === "cm" ? (
-          <NumberField label="" value={heightCm} onChange={setHeightCm} unit="cm" min={50} max={250} />
+          <NumberField label="" value={heightCm} onChange={onHeightCm} unit="cm" min={50} max={250} />
         ) : heightMode === "in" ? (
-          <NumberField label="" value={inchTotal} onChange={setInchTotal} unit="in total" min={20} max={100} />
+          <NumberField label="" value={inchTotal} onChange={onInchTotal} unit="in total" min={20} max={100} />
         ) : (
           <div className="field-row">
-            <NumberField label="Feet" value={feet} onChange={setFeet} unit="ft" min={1} max={8} />
-            <NumberField label="Inches" value={inches} onChange={setInches} unit="in" min={0} max={11.9} />
+            <NumberField label="Feet" value={feet} onChange={onFeet} unit="ft" min={1} max={8} />
+            <NumberField label="Inches" value={inches} onChange={onInches} unit="in" min={0} max={11.9} />
           </div>
         )}
 
@@ -775,13 +895,13 @@ function BmiTab() {
           />
         </div>
         {weightMode === "kg" ? (
-          <NumberField label="" value={weightKg} onChange={setWeightKg} unit="kg" min={10} max={350} />
+          <NumberField label="" value={weightKg} onChange={onWeightKg} unit="kg" min={10} max={350} />
         ) : weightMode === "lb" ? (
-          <NumberField label="" value={lb} onChange={setLb} unit="lb total" min={20} max={800} />
+          <NumberField label="" value={lb} onChange={onLb} unit="lb total" min={20} max={800} />
         ) : (
           <div className="field-row">
-            <NumberField label="Stone" value={stone} onChange={setStone} unit="st" min={1} max={55} />
-            <NumberField label="Pounds" value={pounds} onChange={setPounds} unit="lb" min={0} max={13.9} />
+            <NumberField label="Stone" value={stone} onChange={onStone} unit="st" min={1} max={55} />
+            <NumberField label="Pounds" value={pounds} onChange={onPounds} unit="lb" min={0} max={13.9} />
           </div>
         )}
 
@@ -815,6 +935,7 @@ function BmiTab() {
         </Notice>
         <button className="clear-btn" type="button" onClick={() => {
           setHeightCm(""); setFeet(""); setInches(""); setInchTotal(""); setWeightKg(""); setStone(""); setPounds(""); setLb(""); setEthnic(false);
+          setField({ weightKg: null, weightUnit: undefined, heightCm: null, heightUnit: undefined });
         }}>
           Clear
         </button>
@@ -1411,11 +1532,19 @@ function ClinicalTab() {
 }
 
 function CrClTool() {
-  const [age, setAge] = useState("");
-  const [sex, setSex] = useState("M");
+  const { patient, setField } = useShared();
+  const [age, setAge] = useState(patient.age || "");
+  const [sex, setSex] = useState(patient.sex || "M");
   const [weightType, setWeightType] = useState("actual");
-  const [weight, setWeight] = useState("");
+  const [weight, setWeight] = useState(patient.weightKg != null ? r1s(patient.weightKg) : "");
   const [scr, setScr] = useState("");
+  const onAge = (v) => { setAge(v); setField({ age: v || undefined }); };
+  const onSex = (v) => { setSex(v); setField({ sex: v }); };
+  const onWeight = (v) => { setWeight(v); setField({ weightKg: n(v) > 0 ? n(v) : null, weightUnit: n(v) > 0 ? "kg" : undefined }); };
+  const weightHint =
+    patient.weightUnit && patient.weightUnit !== "kg" && patient.weightKg != null
+      ? `entered as ${fmtWeight(patient.weightKg, patient.weightUnit)}`
+      : "";
   const result = useMemo(() => {
     if (!n(age) || !n(weight) || !n(scr)) return null;
     const k = sex === "M" ? 1.23 : 1.04;
@@ -1436,13 +1565,13 @@ function CrClTool() {
         Use Cockcroft-Gault CrCl, not eGFR, for DOAC, gentamicin and vancomycin dosing checks.
       </Notice>
       <div className="field-row">
-        <NumberField label="Age" value={age} onChange={setAge} unit="yrs" min={18} max={120} />
+        <NumberField label="Age" value={age} onChange={onAge} unit="yrs" min={18} max={120} />
         <div className="field-group">
           <span className="field-label">Sex</span>
           <Segmented
             ariaLabel="Sex"
             value={sex}
-            onChange={setSex}
+            onChange={onSex}
             options={[
               { value: "M", label: "Male" },
               { value: "F", label: "Female" }
@@ -1463,7 +1592,8 @@ function CrClTool() {
           ]}
         />
       </div>
-      <NumberField label="" value={weight} onChange={setWeight} unit="kg" min={20} max={350} />
+      <NumberField label="" value={weight} onChange={onWeight} unit="kg" min={20} max={350} />
+      {weightHint ? <p className="shared-hint">≡ {weightHint}</p> : null}
       <NumberField label="Serum creatinine" value={scr} onChange={setScr} unit="micromol/L" min={10} max={1500} />
       {result ? (
         <ResultBlock
@@ -1479,7 +1609,10 @@ function CrClTool() {
         />
       ) : null}
       <Disclaimer links={sources.bnf} />
-      <button className="clear-btn" type="button" onClick={() => { setAge(""); setWeight(""); setScr(""); }}>
+      <button className="clear-btn" type="button" onClick={() => {
+        setAge(""); setSex("M"); setWeight(""); setScr("");
+        setField({ age: undefined, sex: undefined, weightKg: null, weightUnit: undefined });
+      }}>
         Clear
       </button>
     </>
@@ -1487,15 +1620,25 @@ function CrClTool() {
 }
 
 function BsaTool() {
-  const [height, setHeight] = useState("");
-  const [weight, setWeight] = useState("");
+  const { patient, setField } = useShared();
+  const [height, setHeight] = useState(patient.heightCm != null ? r1s(patient.heightCm) : "");
+  const [weight, setWeight] = useState(patient.weightKg != null ? r1s(patient.weightKg) : "");
+  const onHeight = (v) => { setHeight(v); setField({ heightCm: n(v) > 0 ? n(v) : null, heightUnit: n(v) > 0 ? "cm" : undefined }); };
+  const onWeight = (v) => { setWeight(v); setField({ weightKg: n(v) > 0 ? n(v) : null, weightUnit: n(v) > 0 ? "kg" : undefined }); };
+  const heightHint =
+    patient.heightUnit && patient.heightUnit !== "cm" && patient.heightCm != null ? `entered as ${fmtHeight(patient.heightCm, patient.heightUnit)}` : "";
+  const weightHint =
+    patient.weightUnit && patient.weightUnit !== "kg" && patient.weightKg != null ? `entered as ${fmtWeight(patient.weightKg, patient.weightUnit)}` : "";
   const bsa = n(height) && n(weight) ? Math.sqrt((n(height) * n(weight)) / 3600) : null;
   return (
     <>
       <div className="field-row">
-        <NumberField label="Height" value={height} onChange={setHeight} unit="cm" min={30} max={250} />
-        <NumberField label="Weight" value={weight} onChange={setWeight} unit="kg" min={1} max={350} />
+        <NumberField label="Height" value={height} onChange={onHeight} unit="cm" min={30} max={250} />
+        <NumberField label="Weight" value={weight} onChange={onWeight} unit="kg" min={1} max={350} />
       </div>
+      {heightHint || weightHint ? (
+        <p className="shared-hint">≡ {[heightHint, weightHint].filter(Boolean).join(" · ")}</p>
+      ) : null}
       {bsa ? (
         <ResultBlock
           badge="BSA"
@@ -1507,7 +1650,10 @@ function BsaTool() {
           copyText={`BSA (Mosteller): ${numberText(bsa, 2)} sq m`}
         />
       ) : null}
-      <button className="clear-btn" type="button" onClick={() => { setHeight(""); setWeight(""); }}>
+      <button className="clear-btn" type="button" onClick={() => {
+        setHeight(""); setWeight("");
+        setField({ heightCm: null, heightUnit: undefined, weightKg: null, weightUnit: undefined });
+      }}>
         Clear
       </button>
     </>
@@ -1515,19 +1661,24 @@ function BsaTool() {
 }
 
 function PaediatricTool() {
-  const [weight, setWeight] = useState("");
+  const { patient, setField } = useShared();
+  const [weight, setWeight] = useState(patient.weightKg != null ? r1s(patient.weightKg) : "");
   const [dose, setDose] = useState("");
   const [frequency, setFrequency] = useState("");
   const [maxSingle, setMaxSingle] = useState("");
+  const onWeight = (v) => { setWeight(v); setField({ weightKg: n(v) > 0 ? n(v) : null, weightUnit: n(v) > 0 ? "kg" : undefined }); };
+  const weightHint =
+    patient.weightUnit && patient.weightUnit !== "kg" && patient.weightKg != null ? `entered as ${fmtWeight(patient.weightKg, patient.weightUnit)}` : "";
   const result = n(weight) && n(dose) ? { single: n(weight) * n(dose), daily: n(weight) * n(dose) * (n(frequency) || 1) } : null;
   const exceeded = result && n(maxSingle) && result.single > n(maxSingle);
 
   return (
     <>
       <div className="field-row">
-        <NumberField label="Weight" value={weight} onChange={setWeight} unit="kg" min={1} max={120} />
+        <NumberField label="Weight" value={weight} onChange={onWeight} unit="kg" min={1} max={120} />
         <NumberField label="Dose per kg" value={dose} onChange={setDose} unit="mg/kg" min={0.01} max={500} />
       </div>
+      {weightHint ? <p className="shared-hint">≡ weight {weightHint}</p> : null}
       <div className="field-row">
         <NumberField label="Doses per day" value={frequency} onChange={setFrequency} unit="/day" min={1} max={12} />
         <NumberField label="Max single dose" value={maxSingle} onChange={setMaxSingle} unit="mg" min={0} max={10000} />
@@ -1556,7 +1707,10 @@ function PaediatricTool() {
         </ResultBlock>
       ) : null}
       <Disclaimer links={sources.bnfc} />
-      <button className="clear-btn" type="button" onClick={() => { setWeight(""); setDose(""); setFrequency(""); setMaxSingle(""); }}>
+      <button className="clear-btn" type="button" onClick={() => {
+        setWeight(""); setDose(""); setFrequency(""); setMaxSingle("");
+        setField({ weightKg: null, weightUnit: undefined });
+      }}>
         Clear
       </button>
     </>
